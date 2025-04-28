@@ -1,0 +1,12 @@
+# Ignore Python byte-code files
+*.pyc
+__pycache__/
+
+# Ignore virtual environment directory
+venv/
+
+# Ignore sensitive files (Firebase service account key)
+skillcompass-project-firebase-adminsdk-fbsvc-4a7b677b86.json
+
+# Optional: If you use VS Code, ignore its settings folder
+.vscode/

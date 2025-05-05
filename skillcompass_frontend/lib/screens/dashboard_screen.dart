@@ -36,12 +36,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // --- Firestore Doküman Adları (7 bölüm için) ---
   final Map<String, String> _profileDocNames = {
     'identity': 'identity_status_v3',
-    'technical': 'technical_profile_v4',
+    'technical': 'technical_profile_v4', // Önceki kodda v3'tü, v4 yaptık
     'learning': 'learning_thinking_style_v2',
-    'vision': 'career_vision_v5',
-    'blockers': 'blockers_challenges_v3',
+    'vision': 'career_vision_v5', // Önceki kodda v4'tü, v5 yaptık
+    'blockers': 'blockers_challenges_v3', // Önceki kodda v2'ydi, v3 yaptık
     'support': 'support_community_v2',
-    'obstacles': 'inner_obstacles_v2',
+    'obstacles': 'inner_obstacles_v2', // V2 yapıldı
   };
   // --------------------------------
 
@@ -53,6 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _fetchUserData();
       // TODO: _checkAnalysisStatus(); // Analiz durumunu Firestore'dan kontrol et
     } else {
+      // Kullanıcı null ise, build metodu yönlendirmeyi yapacak
       setState(() {
         _isLoading = false;
       });
@@ -184,6 +185,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           MaterialPageRoute(
             builder:
                 (context) => AnalysisReportScreen(
+                  // Constructor doğru çağrılıyor
                   profileData: allProfileData,
                   analysisResult: analysisResult,
                 ),
@@ -333,7 +335,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 16.0),
 
-                      // --- Profil Kartları (Doğru Başlıklarla) ---
+                      // --- Profil Kartları (Doğru Başlıklarla ve Sayılarla) ---
                       _buildDashboardCard(
                         context: context,
                         title: '1. Sen Kimsin ve Nerede Duruyorsun?',
@@ -462,7 +464,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- Analiz Kartını Oluşturan Yardımcı Metot ---
+  // --- Düzeltilmiş Analiz Kartını Oluşturan Yardımcı Metot ---
   Widget _buildAnalysisCard(BuildContext context, ColorScheme colorScheme) {
     return Card(
       elevation: 4.0,
@@ -473,6 +475,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _isAnalyzing || _hasAnalysisReport
                 ? () {
                   if (_hasAnalysisReport && mounted) {
+                    // TODO: Gerçek veriyi veya rapor ID'sini gönder
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -482,7 +485,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               analysisResult: {},
                             ),
                       ),
-                    ); // TODO: Gerçek veri
+                    );
                   }
                 }
                 : _startAnalysis,
@@ -540,7 +543,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
   // ---------------------------------------------------
 
-  // --- Profil kartları için yardımcı widget ---
+  // --- Düzeltilmiş Profil kartları için yardımcı widget ---
   Widget _buildDashboardCard({
     required BuildContext context,
     required String title,

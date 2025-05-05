@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// Kullanıcının destek, topluluk ve mentorluk yaklaşımını anlamak için ekran
 class SupportCommunityScreen extends StatefulWidget {
   const SupportCommunityScreen({super.key});
 
@@ -15,9 +14,14 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // --- Form Alanları için State Değişkenleri ---
+  // --- State Değişkenleri ---
+  User? _currentUser;
+  bool _isLoadingPage = true;
+  bool _isSaving = false;
+  String _loadingError = '';
 
-  // Soru 1: Sorun Çözme Yöntemleri (Multi-select)
+  // Form Alanları
+  // Soru 1
   final Map<String, bool> _problemSolvingMethods = {
     'Stack Overflow / Forumlar': false,
     'ChatGPT / Yapay Zeka Araçları': false,
@@ -25,22 +29,30 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
     'Mentora / Deneyimli Birine Sormak': false,
     'Deneme Yanılma / Kendi Başıma Çözmeye Çalışmak': false,
     'Konuyu Geçici Olarak Bırakıp Sonra Dönmek': false,
-    'Vazgeçmek / Başka Konuya Geçmek': false,
   };
 
-  // Soru 2: Geri Bildirim İsteği (Radio + Açıklama)
-  String? _feedbackPreference; // null, 'Evet', 'Hayır', 'Bazen'
-  final List<String> _feedbackOptions = ['Evet', 'Hayır', 'Bazen'];
+  // Soru 2
+  String? _feedbackPreference;
+  final List<String> _feedbackOptions = [
+    'Evet, çok isterim',
+    'Evet, duruma göre',
+    'Hayır, pek tercih etmem',
+  ];
   final TextEditingController _feedbackDetailsController =
       TextEditingController();
 
-  // Soru 3: Mentorluk İsteği (Dropdown + Açıklama)
-  String? _mentorshipPreference; // null, 'Evet', 'Belki', 'Hayır'
-  final List<String> _mentorshipOptions = ['Evet', 'Belki', 'Hayır'];
+  // Soru 3
+  String? _mentorshipPreference;
+  final List<String> _mentorshipOptions = [
+    'Evet, aktif olarak arıyorum',
+    'Evet, fırsat olursa değerlendiririm',
+    'Belki, emin değilim',
+    'Hayır, şu an için düşünmüyorum',
+  ];
   final TextEditingController _mentorshipDetailsController =
       TextEditingController();
 
-  // Soru 4: Teknik Topluluk Aktifliği (Multi-select)
+  // Soru 4
   final Map<String, bool> _communityActivityOptions = {
     'Discord Sunucuları': false,
     'Telegram Grupları': false,
@@ -48,20 +60,91 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
     'Üniversite Kulüpleri / Öğrenci Toplulukları': false,
     'Yerel Meetup Grupları': false,
     'Online Forumlar (Stack Overflow dışında)': false,
-    'Aktif Değilim': false, // Ayrı bir seçenek
+    'GitHub Tartışmaları / Issues': false,
+    'Aktif Değilim': false,
   };
 
-  // Soru 5: Destek Çevresi (Radio + Açıklama)
-  bool? _hasSupportCircle; // null, true: Evet, false: Hayır
+  // Soru 5
+  bool? _hasSupportCircle;
   final TextEditingController _supportCircleDetailsController =
       TextEditingController();
-
-  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    // TODO: Kayıtlı veriyi yükleme (_loadSavedData)
+    _currentUser = _auth.currentUser;
+    if (_currentUser != null) {
+      _loadSavedData();
+    } else {
+      setState(() {
+        _isLoadingPage = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showFeedback('Önce giriş yapmalısınız.', isError: true);
+          if (Navigator.canPop(context)) Navigator.of(context).pop();
+        }
+      });
+    }
+  }
+
+  Future<void> _loadSavedData() async {
+    if (_currentUser == null) return;
+    setState(() {
+      _isLoadingPage = true;
+      _loadingError = '';
+    });
+    try {
+      DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await _firestore
+              .collection('users')
+              .doc(_currentUser!.uid)
+              .collection('profile_data')
+              .doc('support_community_v2') // Versiyon 2
+              .get();
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = snapshot.data()!;
+        if (mounted) {
+          _updateStateWithLoadedData(data);
+        }
+      }
+    } catch (e) {
+      print("HATA: support_community_v2 verisi yüklenemedi: $e");
+      _loadingError = 'Kaydedilmiş veriler yüklenirken bir sorun oluştu.';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingPage = false;
+        });
+      }
+    }
+  }
+
+  void _updateStateWithLoadedData(Map<String, dynamic> data) {
+    setState(() {
+      List<String> savedMethods = List<String>.from(
+        data['problemSolvingMethods'] ?? [],
+      );
+      _problemSolvingMethods.forEach((key, value) {
+        _problemSolvingMethods[key] = savedMethods.contains(key);
+      });
+      _feedbackPreference = data['feedbackPreference'];
+      if (!_feedbackOptions.contains(_feedbackPreference))
+        _feedbackPreference = null;
+      _feedbackDetailsController.text = data['feedbackDetails'] ?? '';
+      _mentorshipPreference = data['mentorshipPreference'];
+      if (!_mentorshipOptions.contains(_mentorshipPreference))
+        _mentorshipPreference = null;
+      _mentorshipDetailsController.text = data['mentorshipDetails'] ?? '';
+      List<String> savedCommunities = List<String>.from(
+        data['communityActivities'] ?? [],
+      );
+      _communityActivityOptions.forEach((key, value) {
+        _communityActivityOptions[key] = savedCommunities.contains(key);
+      });
+      _hasSupportCircle = data['hasSupportCircle'];
+      _supportCircleDetailsController.text = data['supportCircleDetails'] ?? '';
+    });
   }
 
   @override
@@ -72,272 +155,308 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
     super.dispose();
   }
 
-  // --- Firestore'a Kaydetme Fonksiyonu ---
   Future<void> _saveToFirestore() async {
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Hata: Oturum açmış kullanıcı bulunamadı.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showFeedback('Oturum bulunamadı.', isError: true);
       return;
     }
 
-    // Soru 1: Seçilen yöntemleri listele
     List<String> selectedProblemSolvingMethods =
         _problemSolvingMethods.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
+            .where((e) => e.value)
+            .map((e) => e.key)
             .toList();
-
-    // Soru 4: Seçilen toplulukları listele
     List<String> selectedCommunityActivities =
         _communityActivityOptions.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
+            .where((e) => e.value)
+            .map((e) => e.key)
             .toList();
 
-    // Kaydedilecek veriyi hazırla
     Map<String, dynamic> supportData = {
       'problemSolvingMethods': selectedProblemSolvingMethods,
       'feedbackPreference': _feedbackPreference,
       'feedbackDetails':
-          (_feedbackPreference == 'Evet' || _feedbackPreference == 'Bazen')
+          (_feedbackPreference == _feedbackOptions[0] ||
+                  _feedbackPreference == _feedbackOptions[1])
               ? _feedbackDetailsController.text.trim()
               : null,
       'mentorshipPreference': _mentorshipPreference,
       'mentorshipDetails':
-          (_mentorshipPreference == 'Evet' || _mentorshipPreference == 'Belki')
+          (_mentorshipPreference == _mentorshipOptions[0] ||
+                  _mentorshipPreference == _mentorshipOptions[1] ||
+                  _mentorshipPreference == _mentorshipOptions[2])
               ? _mentorshipDetailsController.text.trim()
               : null,
       'communityActivities': selectedCommunityActivities,
       'hasSupportCircle': _hasSupportCircle,
-      'supportCircleDetails':
-          _supportCircleDetailsController.text
-              .trim(), // Her durumda kaydedilebilir
+      'supportCircleDetails': _supportCircleDetailsController.text.trim(),
       'lastUpdated': Timestamp.now(),
     };
-
-    try {
-      // Firestore'a yaz: users/{userId}/profile_data/support_community
-      await _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('profile_data')
-          .doc('support_community') // Bu bölüm için belirli bir doküman
-          .set(supportData, SetOptions(merge: true));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Destek ve topluluk bilgileri kaydedildi!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Navigator.pop(context); // İsteğe bağlı geri dön
-      }
-    } catch (e) {
-      print("Firestore Kayıt Hatası (Destek): $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Hata: Bilgiler kaydedilemedi. $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Formu Kaydetme Ana Fonksiyonu
-  Future<void> _submitForm() async {
-    // Manuel validasyonlar (Radio/Dropdown)
-    if (_feedbackPreference == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen 2. soruda geri bildirim tercihinizi belirtin.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-    if (_mentorshipPreference == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen 3. soruda mentorluk isteğinizi belirtin.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-    if (_hasSupportCircle == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lütfen 5. soruda destek çevreniz olup olmadığını belirtin.',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-
-    // FormField validasyonları (varsa)
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen formdaki eksik veya hatalı alanları düzeltin.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
 
     setState(() {
       _isSaving = true;
     });
-    await _saveToFirestore();
-    if (mounted) {
-      setState(() {
-        _isSaving = false;
-      });
+    try {
+      await _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('profile_data')
+          .doc('support_community_v2') // Versiyon 2
+          .set(supportData, SetOptions(merge: true));
+      if (mounted) {
+        _showFeedback(
+          'Destek ve topluluk bilgileri kaydedildi!',
+          isError: false,
+        );
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+      }
+    } catch (e) {
+      print("Firestore Kayıt Hatası (Destek v2): $e");
+      _showFeedback('Bilgiler kaydedilirken bir hata oluştu.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
+  }
+
+  Future<void> _submitForm() async {
+    if (_feedbackPreference == null) {
+      _showFeedback('Lütfen 2. soruyu yanıtlayın.', isError: true);
+      return;
+    }
+    if (_mentorshipPreference == null) {
+      _showFeedback('Lütfen 3. soruyu yanıtlayın.', isError: true);
+      return;
+    }
+    if (_hasSupportCircle == null) {
+      _showFeedback('Lütfen 5. soruyu yanıtlayın.', isError: true);
+      return;
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      _showFeedback(
+        'Lütfen formdaki işaretli alanları düzeltin.',
+        isError: true,
+      );
+      return;
+    }
+    await _saveToFirestore();
+  }
+
+  void _showFeedback(String message, {required bool isError}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(10),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    if (_isLoadingPage) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Yükleniyor...')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_loadingError.isNotEmpty && !_isLoadingPage) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Hata')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              _loadingError,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Destek & Topluluk')),
+      appBar: AppBar(
+        title: const Text('Profil: Destek & Topluluk'),
+        elevation: 1,
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ElevatedButton.icon(
+          icon: _isSaving ? Container() : const Icon(Icons.save_rounded),
+          label:
+              _isSaving
+                  ? const SizedBox(
+                    height: 24.0,
+                    width: 24.0,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.0,
+                      color: Colors.white,
+                    ),
+                  )
+                  : const Text('Kaydet ve Geri Dön'),
+          onPressed: _isSaving ? null : _submitForm,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+            padding: const EdgeInsets.symmetric(vertical: 15.0),
+            textStyle: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            minimumSize: const Size(double.infinity, 50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+        padding: const EdgeInsets.only(
+          left: 16.0,
+          right: 16.0,
+          top: 20.0,
+          bottom: 100.0,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // --- Soru 1: Sorun Çözme Yöntemleri ---
+              // --- Soru 1 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 1,
-                questionText:
-                    'Kodla ilgili bir sorun yaşadığınızda genellikle ne yaparsınız?',
+                icon: Icons.help_center_rounded,
+                questionText: 'Teknik Sorun Çözme Yaklaşımın',
                 child: Column(
                   children:
-                      _problemSolvingMethods.keys.map((method) {
-                        return CheckboxListTile(
-                          title: Text(method),
-                          value: _problemSolvingMethods[method],
-                          onChanged: (bool? newValue) {
-                            setState(() {
-                              _problemSolvingMethods[method] = newValue!;
-                            });
-                          },
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        );
-                      }).toList(),
+                      _problemSolvingMethods.keys
+                          .map(
+                            (method) => CheckboxListTile(
+                              title: Text(
+                                method,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                              value: _problemSolvingMethods[method],
+                              onChanged: (bool? newValue) {
+                                setState(() {
+                                  _problemSolvingMethods[method] = newValue!;
+                                });
+                              },
+                              controlAffinity: ListTileControlAffinity.leading,
+                              dense: false,
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: colorScheme.primary,
+                            ),
+                          )
+                          .toList(),
                 ),
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
 
-              // --- Soru 2: Geri Bildirim İsteği ---
+              // --- Soru 2 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 2,
-                questionText:
-                    'Kod yazarken geri bildirim (code review, yorum vb.) almayı ister misiniz?',
+                icon: Icons.reviews_rounded,
+                questionText: 'Geri Bildirim Alma İsteğin',
                 child: Column(
                   children: [
-                    // Radio seçenekleri
-                    ..._feedbackOptions.map((option) {
-                      return RadioListTile<String>(
-                        title: Text(option),
-                        value: option,
-                        groupValue: _feedbackPreference,
-                        onChanged: (String? value) {
-                          setState(() {
-                            _feedbackPreference = value;
-                          });
-                        },
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      );
-                    }).toList(),
-                    // Evet veya Bazen seçilirse Açıklama Alanı
-                    if (_feedbackPreference == 'Evet' ||
-                        _feedbackPreference == 'Bazen')
+                    Text(
+                      'Kod yazarken geri bildirim (code review, yorum vb.) almayı ister misin?',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    ..._feedbackOptions
+                        .map(
+                          (option) => RadioListTile<String>(
+                            title: Text(option),
+                            value: option,
+                            groupValue: _feedbackPreference,
+                            onChanged: (String? value) {
+                              setState(() {
+                                _feedbackPreference = value;
+                              });
+                            },
+                            dense: false,
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
+                          ),
+                        )
+                        .toList(),
+                    if (_feedbackPreference == _feedbackOptions[0] ||
+                        _feedbackPreference == _feedbackOptions[1])
                       Padding(
                         padding: const EdgeInsets.only(top: 10.0),
                         child: TextFormField(
                           controller: _feedbackDetailsController,
-                          decoration: const InputDecoration(
-                            labelText:
-                                'Ne tür geri bildirimler veya hangi konularda istersiniz? (isteğe bağlı)',
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 14.0,
-                            ),
+                          decoration: _inputDecoration(
+                            context,
+                            'Ne tür geri bildirimler istersin? (isteğe bağlı)',
+                            Icons.edit_note_rounded,
                           ),
                           maxLines: 2,
                         ),
                       ),
                   ],
                 ),
-                // Validasyon _submitForm içinde yapılıyor
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
 
-              // --- Soru 3: Mentorluk İsteği ---
+              // --- Soru 3 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 3,
-                questionText: 'Şu an mentorluk almak ister misiniz?',
+                icon: Icons.supervisor_account_rounded,
+                questionText: 'Mentorluk İsteğin',
                 child: Column(
                   children: [
                     DropdownButtonFormField<String>(
                       value: _mentorshipPreference,
-                      hint: const Text('Seçiniz...'),
+                      hint: const Text('Mentorluk alma durumunuz...'),
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12.0,
-                          vertical: 14.0,
-                        ),
+                      decoration: _inputDecoration(
+                        context,
+                        'Mentorluk İsteği',
+                        Icons.help_outline_rounded,
                       ),
                       items:
-                          _mentorshipOptions.map((String option) {
-                            return DropdownMenuItem<String>(
-                              value: option,
-                              child: Text(option),
-                            );
-                          }).toList(),
+                          _mentorshipOptions
+                              .map(
+                                (String option) => DropdownMenuItem<String>(
+                                  value: option,
+                                  child: Text(option),
+                                ),
+                              )
+                              .toList(),
                       onChanged: (String? newValue) {
                         setState(() {
                           _mentorshipPreference = newValue;
                         });
-                      },
-                      // Validasyon _submitForm içinde yapılıyor
+                      } /* Validator _submitForm'da */,
                     ),
-                    // Evet veya Belki seçilirse Detay Alanı
-                    if (_mentorshipPreference == 'Evet' ||
-                        _mentorshipPreference == 'Belki')
+                    if (_mentorshipPreference == _mentorshipOptions[0] ||
+                        _mentorshipPreference == _mentorshipOptions[1] ||
+                        _mentorshipPreference == _mentorshipOptions[2])
                       Padding(
-                        padding: const EdgeInsets.only(top: 10.0),
+                        padding: const EdgeInsets.only(top: 15.0),
                         child: TextFormField(
                           controller: _mentorshipDetailsController,
-                          decoration: const InputDecoration(
-                            labelText:
-                                'Ne tür bir mentorluk veya hangi konularda destek istersiniz? (isteğe bağlı)',
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 14.0,
-                            ),
+                          decoration: _inputDecoration(
+                            context,
+                            'Ne tür bir mentorluk arıyorsun? (isteğe bağlı)',
+                            Icons.edit_note_rounded,
                           ),
                           maxLines: 2,
                         ),
@@ -345,43 +464,57 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
 
-              // --- Soru 4: Teknik Topluluk Aktifliği ---
+              // --- Soru 4 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 4,
-                questionText:
-                    'Teknik topluluklarda (Discord, Telegram, LinkedIn grupları, kulüpler vb.) aktif misiniz?',
-                child: Column(
-                  // Wrap yerine Column daha iyi olabilir
-                  children:
-                      _communityActivityOptions.keys.map((activity) {
-                        return CheckboxListTile(
-                          title: Text(activity),
-                          value: _communityActivityOptions[activity],
-                          onChanged: (bool? newValue) {
-                            setState(() {
-                              _communityActivityOptions[activity] = newValue!;
-                            });
-                          },
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        );
-                      }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20.0),
-
-              // --- Soru 5: Destek Çevresi ---
-              _buildQuestionCard(
-                context: context,
-                questionNumber: 5,
-                questionText:
-                    'Etrafınızda gelişiminize katkı sunan biri (arkadaş, eğitmen, abi/abla vb.) var mı?',
+                icon: Icons.groups_2_rounded,
+                questionText: 'Topluluk Aktifliğin',
                 child: Column(
                   children: [
+                    Text(
+                      'Hangi teknik topluluklarda aktifsin?',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    ..._communityActivityOptions.keys
+                        .map(
+                          (activity) => CheckboxListTile(
+                            title: Text(
+                              activity,
+                              style: theme.textTheme.bodyLarge,
+                            ),
+                            value: _communityActivityOptions[activity],
+                            onChanged: (bool? newValue) {
+                              setState(() {
+                                _communityActivityOptions[activity] = newValue!;
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                            dense: false,
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
+                          ),
+                        )
+                        .toList(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24.0),
+
+              // --- Soru 5 ---
+              _buildQuestionCard(
+                context: context,
+                icon: Icons.support_agent_rounded,
+                questionText: 'Destek Çevren',
+                child: Column(
+                  children: [
+                    Text(
+                      'Etrafında gelişimine katkı sunan biri (arkadaş, eğitmen, abi/abla vb.) var mı?',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
@@ -396,6 +529,7 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
                             },
                             dense: true,
                             contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
                           ),
                         ),
                         Expanded(
@@ -410,55 +544,24 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
                             },
                             dense: true,
                             contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
                           ),
                         ),
                       ],
                     ),
-                    // Açıklama Alanı (Her zaman gösterilebilir, isteğe bağlı)
                     Padding(
                       padding: const EdgeInsets.only(top: 10.0),
                       child: TextFormField(
                         controller: _supportCircleDetailsController,
-                        decoration: const InputDecoration(
-                          labelText:
-                              'Bu konudaki düşünceleriniz veya durumunuz (isteğe bağlı)',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12.0,
-                            vertical: 14.0,
-                          ),
+                        decoration: _inputDecoration(
+                          context,
+                          'Bu konudaki düşüncelerin/durumun (isteğe bağlı)',
+                          Icons.edit_note_rounded,
                         ),
                         maxLines: 2,
                       ),
                     ),
                   ],
-                ),
-                // Validasyon _submitForm içinde yapılıyor
-              ),
-              const SizedBox(height: 32.0),
-
-              // --- Kaydet Butonu ---
-              Center(
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _submitForm,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40.0,
-                      vertical: 15.0,
-                    ),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                  child:
-                      _isSaving
-                          ? const SizedBox(
-                            height: 24.0,
-                            width: 24.0,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.0,
-                              color: Colors.white,
-                            ),
-                          )
-                          : const Text('Kaydet ve Devam Et'),
                 ),
               ),
               const SizedBox(height: 20.0),
@@ -469,32 +572,93 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
     );
   }
 
-  // Yardımcı Widget (Değişiklik yok)
+  // --- Düzeltilmiş Yardımcı Kart Widget'ı ---
   Widget _buildQuestionCard({
     required BuildContext context,
-    required int questionNumber,
+    required IconData icon,
     required String questionText,
     required Widget child,
   }) {
+    final theme = Theme.of(context);
     return Card(
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '$questionNumber. $questionText',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Icon(icon, color: theme.colorScheme.primary, size: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    questionText,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 19,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12.0),
-            child,
+            const SizedBox(height: 16.0),
+            child, // Asıl input widget'ları
           ],
         ),
       ),
     );
   }
+  // ------------------------------------------
+
+  // --- Düzeltilmiş InputDecoration için Yardımcı Fonksiyon ---
+  InputDecoration _inputDecoration(
+    BuildContext context,
+    String label,
+    IconData? prefixIcon,
+  ) {
+    final theme = Theme.of(context);
+    return InputDecoration(
+      labelText: label,
+      hintText:
+          label.contains("açıklayın") ||
+                  label.contains("detay") ||
+                  label.contains("düşünceleriniz")
+              ? 'Detayları buraya yazın...'
+              : null,
+      prefixIcon:
+          prefixIcon != null
+              ? Icon(
+                prefixIcon,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
+              )
+              : null,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: theme.colorScheme.outline.withOpacity(0.5),
+          width: 1.0,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 14.0,
+        vertical: 16.0,
+      ),
+      floatingLabelBehavior: FloatingLabelBehavior.auto,
+      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+      hintStyle: TextStyle(
+        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+      ),
+    );
+  }
+
+  // ------------------------------------------
 }

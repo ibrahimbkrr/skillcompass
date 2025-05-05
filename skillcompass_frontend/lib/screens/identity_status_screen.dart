@@ -16,23 +16,21 @@ class _IdentityStatusScreenState extends State<IdentityStatusScreen> {
 
   // --- State Değişkenleri ---
   User? _currentUser;
-  String _userName = '';
-  bool _isLoadingUserData = true;
+  bool _isLoadingPage = true;
+  bool _isSaving = false;
+  String _loadingError = '';
 
-  // Soru 1
-  final Map<String, bool> _selfDefinitionOptions = {
-    'Bilişim Dünyasına Yeni Adım Attım': false,
-    'Temel Bilgileri Öğreniyorum / Pratik Yapıyorum': false,
-    'Belirli Bir Alanda Kendimi Geliştiriyorum': false,
-    'Orta Seviye Tecrübeliyim / Uzmanlaşmaya Çalışıyorum': false,
-    'Deneyimli Bir Profesyonelim': false,
-    'Akademik Kariyerime Odaklıyım': false,
-    'Kariyer Değişikliği Sürecindeyim': false,
-    'Freelance Çalışıyorum / Kendi İşimi Yapıyorum': false,
-  };
-  // Soru 2
-  final TextEditingController _universityController = TextEditingController();
-  // Soru 3
+  // Form Alanları
+  String? _selectedCurrentStatus;
+  final List<String> _currentStatusOptions = [
+    'Bilişim alanını keşfediyorum / Yeni başlıyorum.',
+    'Öğrenme aşamasındayım (Kurs, okul, kendi kendine).',
+    'İlk işimi/stajımı arıyorum / Yeni mezunum.',
+    'Junior seviyede çalışıyorum / Deneyim kazanıyorum.',
+    'Orta/Kıdemli seviyede profesyonelim.',
+    'Kariyer değişikliği yapıyorum / Alan değiştiriyorum.',
+    'Freelance çalışıyorum / Kendi işimi yapıyorum.',
+  ];
   String? _selectedAcademicStage;
   final List<String> _academicStageOptions = [
     'Hazırlık Sınıfı',
@@ -49,19 +47,37 @@ class _IdentityStatusScreenState extends State<IdentityStatusScreen> {
     'Doktora Mezunu',
     'Bootcamp / Yoğun Kurs',
     'Okul Dışı / Kendi Kendine Öğrenen',
+    'Lise / Dengi',
   ];
-  // Soru 4
-  final Map<String, bool> _currentActivitiesOptions = {
-    'Üniversite Dersleri': false,
-    'Staj Yapıyorum': false,
-    'Online Kurs Alıyorum': false,
-    'Freelance Proje Yapıyorum': false,
-    'Tam Zamanlı Çalışıyorum': false,
-    'Yarı Zamanlı Çalışıyorum': false,
-    'Kişisel Proje Geliştiriyorum': false,
-    'İş Arıyorum': false,
+  final Map<String, bool> _academicFieldsOptions = {
+    'Bilgisayar Mühendisliği': false,
+    'Yazılım Mühendisliği': false,
+    'Elektrik-Elektronik Mühendisliği': false,
+    'Matematik / İstatistik': false,
+    'Yönetim Bilişim Sistemleri (MIS)': false,
+    'Endüstri Mühendisliği': false,
+    'Web Geliştirme Bootcamp': false,
+    'Veri Bilimi Bootcamp': false,
+    'Mobil Geliştirme Bootcamp': false,
+    'Diğer Mühendislik Alanı': false,
+    'Diğer Sayısal Alan': false,
+    'Diğer Sözel/Eşit Ağırlık Alanı': false,
+    'Alan Dışı / Kendi Kendine Öğrenme': false,
+    'Diğer (Açıklayınız)': false,
   };
-  // Soru 5
+  final TextEditingController _otherAcademicFieldController =
+      TextEditingController();
+  final Map<String, bool> _currentActivitiesOptions = {
+    'Üniversite/Okul Dersleri': false,
+    'Staj': false,
+    'Online Kurslar/Bootcamp': false,
+    'Freelance Projeler': false,
+    'Tam Zamanlı İş': false,
+    'Yarı Zamanlı İş': false,
+    'Kişisel Projeler': false,
+    'İş Arama Süreci': false,
+    'Açık Kaynak Katkı': false,
+  };
   final Map<String, bool> _investmentMethodsOptions = {
     'Online Kurslar (Udemy, Coursera vb.)': false,
     'Teknik Kitaplar / Bloglar / Makaleler': false,
@@ -73,337 +89,570 @@ class _IdentityStatusScreenState extends State<IdentityStatusScreen> {
     'Teknoloji Podcastleri / Yayınları': false,
     'Mentorluk (Almak/Vermek)': false,
   };
-
-  bool _isSaving = false;
+  final Map<String, bool> _appExpectationsOptions = {
+    'Bana özel bir kariyer yol haritası çizilmesi': false,
+    'Eksik yönlerimin tespit edilmesi ve öneriler sunulması': false,
+    'Teknik becerilerimi geliştirmek için kaynak/proje önerileri': false,
+    'Motivasyonumu yüksek tutacak takip ve geri bildirimler': false,
+    'Mülakatlara hazırlanmama yardımcı olması': false,
+    'Sektördeki trendler hakkında bilgi vermesi': false,
+    'Benzer durumdaki kişilerle iletişim kurma imkanı': false,
+    'Diğer (Açıklayınız)': false,
+  };
+  final TextEditingController _otherExpectationController =
+      TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _currentUser = _auth.currentUser;
     if (_currentUser != null) {
-      _fetchUserName();
+      _loadSavedData();
     } else {
       setState(() {
-        _isLoadingUserData = false;
+        _isLoadingPage = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showFeedback('Önce giriş yapmalısınız.', isError: true);
+          // Güvenli pop: Eğer bir önceki sayfa varsa döner, yoksa bir şey yapmaz.
+          if (Navigator.canPop(context)) {
+            Navigator.of(context).pop();
+          }
+        }
       });
     }
-    // _loadSavedData();
   }
 
-  Future<void> _fetchUserName() async {
-    // ... (Kullanıcı adı çekme kodu - Değişiklik yok) ...
+  // --- Kayıtlı Form Verisini Yükleme Fonksiyonu ---
+  Future<void> _loadSavedData() async {
+    if (_currentUser == null) return;
     setState(() {
-      _isLoadingUserData = true;
+      _isLoadingPage = true;
+      _loadingError = '';
     });
+
     try {
-      DocumentSnapshot<Map<String, dynamic>> userDoc =
-          await _firestore.collection('users').doc(_currentUser!.uid).get();
-      if (userDoc.exists && userDoc.data() != null) {
+      DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await _firestore
+              .collection('users')
+              .doc(_currentUser!.uid)
+              .collection('profile_data')
+              .doc('identity_status_v3')
+              .get(); // v3'ü okuyoruz
+
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = snapshot.data()!;
         if (mounted) {
-          setState(() {
-            _userName = userDoc.data()!['firstName'] ?? '';
-            _isLoadingUserData = false;
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isLoadingUserData = false;
-          });
+          _updateStateWithLoadedData(data);
         }
       }
     } catch (e) {
-      print("Kullanıcı adı çekme hatası: $e");
+      print("HATA: identity_status_v3 verisi yüklenemedi: $e");
+      _loadingError = 'Kaydedilmiş veriler yüklenirken bir sorun oluştu.';
+    } finally {
       if (mounted) {
         setState(() {
-          _isLoadingUserData = false;
+          _isLoadingPage = false;
         });
       }
     }
   }
 
+  // Gelen veriyi state'e atayan yardımcı fonksiyon
+  void _updateStateWithLoadedData(Map<String, dynamic> data) {
+    setState(() {
+      _selectedCurrentStatus = data['currentStatus'];
+      if (!_currentStatusOptions.contains(_selectedCurrentStatus))
+        _selectedCurrentStatus = null;
+      _selectedAcademicStage = data['academicStage'];
+      if (!_academicStageOptions.contains(_selectedAcademicStage))
+        _selectedAcademicStage = null;
+      List<String> savedFields = List<String>.from(
+        data['academicFields'] ?? [],
+      );
+      _academicFieldsOptions.forEach((key, value) {
+        _academicFieldsOptions[key] = savedFields.contains(key);
+      });
+      _otherAcademicFieldController.text = data['otherAcademicField'] ?? '';
+      List<String> savedActs = List<String>.from(
+        data['currentActivities'] ?? [],
+      );
+      _currentActivitiesOptions.forEach((key, value) {
+        _currentActivitiesOptions[key] = savedActs.contains(key);
+      });
+      List<String> savedInvest = List<String>.from(
+        data['selfInvestmentMethods'] ?? [],
+      );
+      _investmentMethodsOptions.forEach((key, value) {
+        _investmentMethodsOptions[key] = savedInvest.contains(key);
+      });
+      List<String> savedExp = List<String>.from(data['appExpectations'] ?? []);
+      _appExpectationsOptions.forEach((key, value) {
+        _appExpectationsOptions[key] = savedExp.contains(key);
+      });
+      _otherExpectationController.text = data['otherExpectation'] ?? '';
+    });
+  }
+  // --------------------------------------------------
+
   @override
   void dispose() {
-    _universityController.dispose();
+    _otherAcademicFieldController.dispose();
+    _otherExpectationController.dispose();
     super.dispose();
   }
 
+  // --- Firestore'a Kaydetme Fonksiyonu ---
   Future<void> _saveToFirestore() async {
-    // ... (Firestore'a kaydetme kodu - Değişiklik yok) ...
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      /* Hata mesajı */
+      _showFeedback('Oturum bulunamadı.', isError: true);
       return;
     }
 
-    List<String> selectedSelfDefinitions =
-        _selfDefinitionOptions.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
+    // Seçilenleri listele
+    List<String> selectedFields =
+        _academicFieldsOptions.entries
+            .where((e) => e.value)
+            .map((e) => e.key)
             .toList();
-    List<String> selectedCurrentActivities =
+    List<String> selectedActivities =
         _currentActivitiesOptions.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
+            .where((e) => e.value)
+            .map((e) => e.key)
             .toList();
     List<String> selectedInvestmentMethods =
         _investmentMethodsOptions.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
+            .where((e) => e.value)
+            .map((e) => e.key)
+            .toList();
+    List<String> selectedExpectations =
+        _appExpectationsOptions.entries
+            .where((e) => e.value)
+            .map((e) => e.key)
             .toList();
 
+    // Kaydedilecek veriyi hazırla
     Map<String, dynamic> identityData = {
-      'selfDefinitions': selectedSelfDefinitions,
-      'universityAndDepartment': _universityController.text.trim(),
+      'currentStatus': _selectedCurrentStatus,
       'academicStage': _selectedAcademicStage,
-      'currentActivities': selectedCurrentActivities,
+      'academicFields': selectedFields,
+      'otherAcademicField':
+          _academicFieldsOptions['Diğer (Açıklayınız)'] == true
+              ? _otherAcademicFieldController.text.trim()
+              : null,
+      'currentActivities': selectedActivities,
       'selfInvestmentMethods': selectedInvestmentMethods,
+      'appExpectations': selectedExpectations,
+      'otherExpectation':
+          _appExpectationsOptions['Diğer (Açıklayınız)'] == true
+              ? _otherExpectationController.text.trim()
+              : null,
       'lastUpdated': Timestamp.now(),
     };
 
+    setState(() {
+      _isSaving = true;
+    });
+
     try {
+      // Firestore'a yaz (v3)
       await _firestore
           .collection('users')
           .doc(currentUser.uid)
           .collection('profile_data')
-          .doc('identity_status')
+          .doc('identity_status_v3')
           .set(identityData, SetOptions(merge: true));
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bilgiler başarıyla kaydedildi!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _showFeedback('Bilgiler başarıyla kaydedildi!', isError: false);
+        // Geri dönmeden önce kısa bir bekleme (opsiyonel, SnackBar'ın görünmesi için)
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
-      print("Firestore Kayıt Hatası: $e");
+      print("Firestore Kayıt Hatası (identity_status_v3): $e");
+      _showFeedback('Bilgiler kaydedilirken bir hata oluştu.', isError: true);
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Hata: Bilgiler kaydedilemedi. $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _isSaving = false;
+        });
       }
     }
   }
+  // ------------------------------------
 
+  // --- Form Gönderme ---
   Future<void> _submitForm() async {
-    // ... (Form gönderme kodu - Değişiklik yok) ...
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen formdaki eksik veya hatalı alanları düzeltin.'),
-          backgroundColor: Colors.redAccent,
-        ),
+    // Manuel validasyonlar
+    if (_selectedCurrentStatus == null) {
+      _showFeedback('Lütfen 1. soruyu yanıtlayın.', isError: true);
+      return;
+    }
+    if (_selectedAcademicStage == null) {
+      _showFeedback('Lütfen 2. soruda eğitim seviyenizi seçin.', isError: true);
+      return;
+    }
+    if (!_academicFieldsOptions.containsValue(true)) {
+      _showFeedback('Lütfen 2. soruda en az bir alan seçin.', isError: true);
+      return;
+    }
+    if (!_appExpectationsOptions.containsValue(true)) {
+      _showFeedback(
+        'Lütfen 5. soruda en az bir beklenti seçin.',
+        isError: true,
       );
       return;
     }
-    setState(() {
-      _isSaving = true;
-    });
-    await _saveToFirestore();
-    if (mounted) {
-      setState(() {
-        _isSaving = false;
-      });
+
+    // FormField validasyonları
+    if (!_formKey.currentState!.validate()) {
+      _showFeedback(
+        'Lütfen formdaki işaretli alanları düzeltin.',
+        isError: true,
+      );
+      return;
     }
+
+    // Kaydetme işlemini başlat
+    await _saveToFirestore();
   }
+  // ------------------------------------
+
+  // --- Geri Bildirim Gösterme ---
+  void _showFeedback(String message, {required bool isError}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(10),
+        duration: const Duration(seconds: 3), // Biraz daha uzun süre görünsün
+      ),
+    );
+  }
+  // ------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoadingUserData) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    if (_isLoadingPage) {
       return Scaffold(
-        /* ... Yükleniyor ekranı ... */
         appBar: AppBar(title: const Text('Yükleniyor...')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+    if (_loadingError.isNotEmpty && !_isLoadingPage) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Hata')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              _loadingError,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Merhaba ${_userName.isNotEmpty ? _userName : 'Kullanıcı'}!',
+      appBar: AppBar(title: const Text('Profil: Kimlik & Durum'), elevation: 1),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ElevatedButton.icon(
+          icon:
+              _isSaving
+                  ? Container()
+                  : const Icon(Icons.save_rounded), // İkon güncellendi
+          label:
+              _isSaving
+                  ? const SizedBox(
+                    height: 24.0,
+                    width: 24.0,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.0,
+                      color: Colors.white,
+                    ),
+                  )
+                  : const Text('Kaydet ve Geri Dön'),
+          onPressed: _isSaving ? null : _submitForm,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+            padding: const EdgeInsets.symmetric(vertical: 15.0),
+            textStyle: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            minimumSize: const Size(double.infinity, 50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+        padding: const EdgeInsets.only(
+          left: 16.0,
+          right: 16.0,
+          top: 20.0,
+          bottom: 20.0,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // --- Soru 1 --- (Değişiklik yok)
+              // --- Soru 1 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 1,
-                questionText:
-                    '${_userName.isNotEmpty ? _userName + ', k' : 'K'}endinizi nasıl tanımlarsınız?',
+                icon: Icons.directions_run_rounded,
+                questionText: 'Mevcut Durumun',
                 child: Column(
-                  /* ... CheckboxListTile ... */
                   children:
-                      _selfDefinitionOptions.keys.map((option) {
-                        return CheckboxListTile(
-                          /* ... */
-                          title: Text(option),
-                          value: _selfDefinitionOptions[option],
-                          onChanged: (bool? newValue) {
-                            setState(() {
-                              _selfDefinitionOptions[option] = newValue!;
-                            });
-                          },
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        );
-                      }).toList(),
-                ),
-              ),
-              const SizedBox(height: 20.0),
-
-              // --- Soru 2 --- (Değişiklik yok)
-              _buildQuestionCard(
-                context: context,
-                questionNumber: 2,
-                questionText: 'Üniversite ve bölümünüz nedir?',
-                child: TextFormField(
-                  /* ... */
-                  controller: _universityController,
-                  decoration: const InputDecoration(
-                    hintText: 'Örn: Fırat Üniversitesi, Yazılım Müh.',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12.0,
-                      vertical: 14.0,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20.0),
-
-              // --- Soru 3 --- (Değişiklik yok)
-              _buildQuestionCard(
-                context: context,
-                questionNumber: 3,
-                questionText: 'Akademik durumunuz nedir?',
-                child: DropdownButtonFormField<String>(
-                  /* ... */
-                  value: _selectedAcademicStage,
-                  hint: const Text('Seçiniz...'),
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12.0,
-                      vertical: 14.0,
-                    ),
-                  ),
-                  items:
-                      _academicStageOptions.map((String stage) {
-                        return DropdownMenuItem<String>(
-                          value: stage,
-                          child: Text(stage, overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedAcademicStage = newValue;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Lütfen akademik durumunuzu seçin';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              const SizedBox(height: 20.0),
-
-              // --- Soru 4 --- (Değişiklik yok)
-              _buildQuestionCard(
-                context: context,
-                questionNumber: 4,
-                questionText: 'Şu an aktif olarak neler yapıyorsunuz?',
-                child: Wrap(
-                  /* ... CheckboxListTile ... */
-                  spacing: 8.0,
-                  runSpacing: 0.0,
-                  children:
-                      _currentActivitiesOptions.keys.map((option) {
-                        return SizedBox(
-                          width: MediaQuery.of(context).size.width * 0.4,
-                          child: CheckboxListTile(
-                            /* ... */
-                            title: Text(
-                              option,
-                              style: const TextStyle(fontSize: 14),
+                      _currentStatusOptions
+                          .map(
+                            (status) => RadioListTile<String>(
+                              title: Text(
+                                status,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                              value: status,
+                              groupValue: _selectedCurrentStatus,
+                              onChanged: (String? value) {
+                                setState(() {
+                                  _selectedCurrentStatus = value;
+                                });
+                              },
+                              dense: false,
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: colorScheme.primary,
                             ),
-                            value: _currentActivitiesOptions[option],
+                          )
+                          .toList(),
+                ),
+              ),
+              const SizedBox(height: 24.0),
+
+              // --- Soru 2 ---
+              _buildQuestionCard(
+                context: context,
+                icon: Icons.school_rounded,
+                questionText: 'Akademik Geçmişin',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: _selectedAcademicStage,
+                      hint: const Text('Eğitim Seviyesi Seçin...'),
+                      isExpanded: true,
+                      decoration: _inputDecoration(
+                        context,
+                        'Eğitim Seviyesi',
+                        Icons.grade_rounded,
+                      ),
+                      items:
+                          _academicStageOptions
+                              .map(
+                                (String stage) => DropdownMenuItem<String>(
+                                  value: stage,
+                                  child: Text(
+                                    stage,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedAcademicStage = newValue;
+                        });
+                      },
+                      validator:
+                          (value) =>
+                              value == null
+                                  ? 'Lütfen eğitim seviyenizi seçin.'
+                                  : null,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Okuduğun/Mezun Olduğun Alan(lar):',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    ..._academicFieldsOptions.keys
+                        .map(
+                          (field) => CheckboxListTile(
+                            title: Text(
+                              field,
+                              style: theme.textTheme.bodyLarge,
+                            ),
+                            value: _academicFieldsOptions[field],
                             onChanged: (bool? newValue) {
                               setState(() {
-                                _currentActivitiesOptions[option] = newValue!;
+                                _academicFieldsOptions[field] = newValue!;
                               });
                             },
                             controlAffinity: ListTileControlAffinity.leading,
-                            dense: true,
+                            dense: false,
                             contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
                           ),
-                        );
-                      }).toList(),
+                        )
+                        .toList(),
+                    // "Diğer" alanı için if koşulu
+                    if (_academicFieldsOptions['Diğer (Açıklayınız)'] == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0),
+                        child: TextFormField(
+                          controller: _otherAcademicFieldController,
+                          decoration: _inputDecoration(
+                            context,
+                            'Diğer Alanı Açıklayın',
+                            Icons.edit_note_rounded,
+                          ),
+                          validator: (value) {
+                            if (_academicFieldsOptions['Diğer (Açıklayınız)'] ==
+                                    true &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Lütfen diğer alanı açıklayın.';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
 
-              // --- Soru 5: Sadece metni güncellendi ---
+              // --- Soru 3 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 5,
-                // Güncellenmiş soru metni
-                questionText:
-                    'Kendinizi geliştirmek için genellikle hangi yöntemleri kullanırsınız? (İlgili olanları işaretleyin)',
+                icon: Icons.work_history_rounded,
+                questionText: 'Şu Anki Aktivitelerin',
                 child: Column(
-                  // CheckboxListTile'lar aynı kaldı
                   children:
-                      _investmentMethodsOptions.keys.map((option) {
-                        return CheckboxListTile(
-                          title: Text(option),
-                          value: _investmentMethodsOptions[option],
-                          onChanged: (bool? newValue) {
-                            setState(() {
-                              _investmentMethodsOptions[option] = newValue!;
-                            });
-                          },
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        );
-                      }).toList(),
+                      _currentActivitiesOptions.keys
+                          .map(
+                            (activity) => CheckboxListTile(
+                              title: Text(
+                                activity,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                              value: _currentActivitiesOptions[activity],
+                              onChanged: (bool? newValue) {
+                                setState(() {
+                                  _currentActivitiesOptions[activity] =
+                                      newValue!;
+                                });
+                              },
+                              controlAffinity: ListTileControlAffinity.leading,
+                              dense: false,
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: colorScheme.primary,
+                            ),
+                          )
+                          .toList(),
                 ),
               ),
-              // ---------------------------
-              const SizedBox(height: 32.0),
+              const SizedBox(height: 24.0),
 
-              // --- Kaydet Butonu --- (Değişiklik yok)
-              Center(
-                child: ElevatedButton(
-                  /* ... */
-                  onPressed: _isSaving ? null : _submitForm,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40.0,
-                      vertical: 15.0,
-                    ),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                  child:
-                      _isSaving
-                          ? const SizedBox(/* ... */)
-                          : const Text('Kaydet ve Devam Et'),
+              // --- Soru 4 ---
+              _buildQuestionCard(
+                context: context,
+                icon: Icons.lightbulb_rounded,
+                questionText: 'Gelişim Yöntemlerin',
+                child: Column(
+                  children:
+                      _investmentMethodsOptions.keys
+                          .map(
+                            (method) => CheckboxListTile(
+                              title: Text(
+                                method,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                              value: _investmentMethodsOptions[method],
+                              onChanged: (bool? newValue) {
+                                setState(() {
+                                  _investmentMethodsOptions[method] = newValue!;
+                                });
+                              },
+                              controlAffinity: ListTileControlAffinity.leading,
+                              dense: false,
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: colorScheme.primary,
+                            ),
+                          )
+                          .toList(),
                 ),
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
+
+              // --- Soru 5 ---
+              _buildQuestionCard(
+                context: context,
+                icon: Icons.question_mark_rounded,
+                questionText: 'SkillCompass\'tan Beklentin(ler)',
+                child: Column(
+                  children: [
+                    ..._appExpectationsOptions.keys
+                        .map(
+                          (expectation) => CheckboxListTile(
+                            title: Text(
+                              expectation,
+                              style: theme.textTheme.bodyLarge,
+                            ),
+                            value: _appExpectationsOptions[expectation],
+                            onChanged: (bool? newValue) {
+                              setState(() {
+                                _appExpectationsOptions[expectation] =
+                                    newValue!;
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                            dense: false,
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
+                          ),
+                        )
+                        .toList(),
+                    // "Diğer" alanı için if koşulu
+                    if (_appExpectationsOptions['Diğer (Açıklayınız)'] == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0),
+                        child: TextFormField(
+                          controller: _otherExpectationController,
+                          decoration: _inputDecoration(
+                            context,
+                            'Diğer Beklentinizi Açıklayın',
+                            Icons.edit_note_rounded,
+                          ),
+                          maxLines: 3,
+                          validator: (value) {
+                            if (_appExpectationsOptions['Diğer (Açıklayınız)'] ==
+                                    true &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Lütfen diğer beklentinizi açıklayın.';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20.0), // Buton öncesi boşluk
             ],
           ),
         ),
@@ -411,33 +660,94 @@ class _IdentityStatusScreenState extends State<IdentityStatusScreen> {
     );
   }
 
-  // Yardımcı Widget (Değişiklik yok)
+  // --- Yardımcı Kart Widget'ı ---
   Widget _buildQuestionCard({
     required BuildContext context,
-    required int questionNumber,
+    required IconData icon,
     required String questionText,
     required Widget child,
   }) {
+    final theme = Theme.of(context);
     return Card(
-      /* ... Card içeriği ... */
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '$questionNumber. $questionText',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Icon(icon, color: theme.colorScheme.primary, size: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    questionText,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 19,
+                      color:
+                          theme
+                              .colorScheme
+                              .onSurfaceVariant, // Biraz daha yumuşak başlık rengi
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12.0),
-            child,
+            const SizedBox(height: 16.0), // Başlık ve içerik arası boşluk
+            child, // Asıl input widget'ları
           ],
         ),
       ),
     );
   }
+  // ------------------------------------------
+
+  // --- InputDecoration için Yardımcı Fonksiyon ---
+  InputDecoration _inputDecoration(
+    BuildContext context,
+    String label,
+    IconData? prefixIcon,
+  ) {
+    final theme = Theme.of(context);
+    return InputDecoration(
+      labelText: label,
+      hintText:
+          label.contains("Açıklayın") ? 'Detayları buraya yazın...' : null,
+      prefixIcon:
+          prefixIcon != null
+              ? Icon(
+                prefixIcon,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
+              )
+              : null, // İkon rengi
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: theme.colorScheme.outline.withOpacity(0.5),
+          width: 1.0,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 14.0,
+        vertical: 16.0,
+      ),
+      floatingLabelBehavior: FloatingLabelBehavior.auto,
+      labelStyle: TextStyle(
+        color: theme.colorScheme.onSurfaceVariant,
+      ), // Label rengi
+      hintStyle: TextStyle(
+        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+      ), // Hint rengi
+    );
+  }
+
+  // ------------------------------------------
 }

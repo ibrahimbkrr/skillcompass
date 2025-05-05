@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// Kullanıcının tıkanma noktalarını ve eksiklerini anlamak için ekran
 class BlockersChallengesScreen extends StatefulWidget {
   const BlockersChallengesScreen({super.key});
 
@@ -16,9 +15,14 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // --- Form Alanları için State Değişkenleri ---
+  // --- State Değişkenleri ---
+  User? _currentUser;
+  bool _isLoadingPage = true;
+  bool _isSaving = false;
+  String _loadingError = '';
 
-  // Soru 1: Zorlanılan Teknik Konular (Multi-select + Açıklama)
+  // Form Alanları
+  // Soru 1
   final Map<String, bool> _struggledTopicsOptions = {
     'Algoritmalar ve Veri Yapıları': false,
     'Backend Geliştirme / API Tasarımı': false,
@@ -31,10 +35,12 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
     'Asenkron Programlama': false,
     'Git / Versiyon Kontrolü': false,
     'Sistem Tasarımı / Mimari': false,
+    'Matematik / İstatistik Temelleri': false,
+    'Diğer (Açıklayınız)': false,
   };
   final TextEditingController _topicDetailsController = TextEditingController();
 
-  // Soru 2: İlerleme Zorluğu Nedenleri (Multi-select)
+  // Soru 2
   final Map<String, bool> _progressionBlockersOptions = {
     'Net bir öğrenme/kariyer planım yok': false,
     'Motivasyon eksikliği / Erteleme': false,
@@ -47,339 +53,506 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
     'Kendine güvensizlik / "Yeterli değilim" hissi': false,
   };
 
-  // Soru 3: İlerleyememe Hissi (Radio + Açıklama)
-  String? _feelingStuckStatus; // null, 'Evet', 'Hayır', 'Bazen'
+  // Soru 3
+  String? _feelingStuckStatus;
   final List<String> _feelingStuckOptions = ['Evet', 'Hayır', 'Bazen'];
   final TextEditingController _feelingStuckDetailsController =
       TextEditingController();
 
-  // Soru 4: Kod Yazarken En Zorlayan Şey (TextField)
-  final TextEditingController _codingChallengeController =
+  // Soru 4
+  final Map<String, bool> _codingChallengesOptions = {
+    'Hataları Ayıklama (Debugging)': false,
+    'Algoritma Tasarlama / Problem Çözme': false,
+    'Kod Organizasyonu / Temiz Kod Yazma': false,
+    'Yeni Kütüphane/Framework Öğrenme': false,
+    'Boş Sayfa Sendromu / Nereden Başlayacağını Bilememe': false,
+    'Performans Optimizasyonu': false,
+    'Asenkron İşlemleri Yönetme': false,
+    'Diğer (Açıklayınız)': false,
+  };
+  final TextEditingController _otherCodingChallengeController =
       TextEditingController();
 
-  // Soru 5: "Öğrenmeden İlerleyemem" Konusu (TextField - İsteğe bağlı)
-  final TextEditingController _mustLearnTopicController =
+  // Soru 5
+  final TextEditingController _priorityLearnTopicController =
       TextEditingController();
-
-  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    // TODO: Kayıtlı veriyi yükleme (_loadSavedData)
+    _currentUser = _auth.currentUser;
+    if (_currentUser != null) {
+      _loadSavedData();
+    } else {
+      setState(() {
+        _isLoadingPage = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showFeedback('Önce giriş yapmalısınız.', isError: true);
+          if (Navigator.canPop(context)) Navigator.of(context).pop();
+        }
+      });
+    }
   }
+
+  // --- Kayıtlı Veriyi Yükleme ---
+  Future<void> _loadSavedData() async {
+    if (_currentUser == null) return;
+    setState(() {
+      _isLoadingPage = true;
+      _loadingError = '';
+    });
+    try {
+      DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await _firestore
+              .collection('users')
+              .doc(_currentUser!.uid)
+              .collection('profile_data')
+              .doc('blockers_challenges_v3') // Versiyon 3
+              .get();
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = snapshot.data()!;
+        if (mounted) {
+          _updateStateWithLoadedData(data);
+        }
+      }
+    } catch (e) {
+      print("HATA: blockers_challenges_v3 verisi yüklenemedi: $e");
+      _loadingError = 'Kaydedilmiş veriler yüklenirken bir sorun oluştu.';
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingPage = false;
+        });
+      }
+    }
+  }
+
+  void _updateStateWithLoadedData(Map<String, dynamic> data) {
+    setState(() {
+      List<String> savedTopics = List<String>.from(
+        data['struggledTopics'] ?? [],
+      );
+      _struggledTopicsOptions.forEach((key, value) {
+        _struggledTopicsOptions[key] = savedTopics.contains(key);
+      });
+      _topicDetailsController.text = data['struggledTopicsDetails'] ?? '';
+      List<String> savedBlockers = List<String>.from(
+        data['progressionBlockers'] ?? [],
+      );
+      _progressionBlockersOptions.forEach((key, value) {
+        _progressionBlockersOptions[key] = savedBlockers.contains(key);
+      });
+      _feelingStuckStatus = data['feelingStuckStatus'];
+      if (!_feelingStuckOptions.contains(_feelingStuckStatus))
+        _feelingStuckStatus = null;
+      _feelingStuckDetailsController.text = data['feelingStuckDetails'] ?? '';
+      List<String> savedChallenges = List<String>.from(
+        data['codingChallenges'] ?? [],
+      );
+      _codingChallengesOptions.forEach((key, value) {
+        _codingChallengesOptions[key] = savedChallenges.contains(key);
+      });
+      _otherCodingChallengeController.text = data['otherCodingChallenge'] ?? '';
+      _priorityLearnTopicController.text = data['priorityLearnTopic'] ?? '';
+    });
+  }
+  // --------------------------------------------------
 
   @override
   void dispose() {
     _topicDetailsController.dispose();
     _feelingStuckDetailsController.dispose();
-    _codingChallengeController.dispose();
-    _mustLearnTopicController.dispose();
+    _otherCodingChallengeController.dispose();
+    _priorityLearnTopicController.dispose();
     super.dispose();
   }
 
-  // --- Firestore'a Kaydetme Fonksiyonu ---
+  // --- Firestore'a Kaydetme ---
   Future<void> _saveToFirestore() async {
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
-      /* Hata mesajı */
+      _showFeedback('Oturum bulunamadı.', isError: true);
       return;
     }
 
-    // Soru 1: Seçilen konuları listele
     List<String> selectedStruggledTopics =
         _struggledTopicsOptions.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
+            .where((e) => e.value)
+            .map((e) => e.key)
             .toList();
-
-    // Soru 2: Seçilen nedenleri listele
     List<String> selectedProgressionBlockers =
         _progressionBlockersOptions.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
+            .where((e) => e.value)
+            .map((e) => e.key)
+            .toList();
+    List<String> selectedCodingChallenges =
+        _codingChallengesOptions.entries
+            .where((e) => e.value)
+            .map((e) => e.key)
             .toList();
 
-    // Kaydedilecek veriyi hazırla
     Map<String, dynamic> blockersData = {
       'struggledTopics': selectedStruggledTopics,
-      'struggledTopicsDetails': _topicDetailsController.text.trim(),
+      'struggledTopicsDetails':
+          _struggledTopicsOptions['Diğer (Açıklayınız)'] == true
+              ? _topicDetailsController.text.trim()
+              : null,
       'progressionBlockers': selectedProgressionBlockers,
       'feelingStuckStatus': _feelingStuckStatus,
       'feelingStuckDetails':
           (_feelingStuckStatus == 'Evet' || _feelingStuckStatus == 'Bazen')
               ? _feelingStuckDetailsController.text.trim()
-              : null, // Sadece ilgiliyse detayı kaydet
-      'codingChallenge': _codingChallengeController.text.trim(),
-      'mustLearnTopic':
-          _mustLearnTopicController.text
-              .trim(), // İsteğe bağlı olduğu için trim yeterli
+              : null,
+      'codingChallenges': selectedCodingChallenges,
+      'otherCodingChallenge':
+          _codingChallengesOptions['Diğer (Açıklayınız)'] == true
+              ? _otherCodingChallengeController.text.trim()
+              : null,
+      'priorityLearnTopic': _priorityLearnTopicController.text.trim(),
       'lastUpdated': Timestamp.now(),
     };
-
-    try {
-      // Firestore'a yaz: users/{userId}/profile_data/blockers_challenges
-      await _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('profile_data')
-          .doc('blockers_challenges') // Bu bölüm için belirli bir doküman
-          .set(blockersData, SetOptions(merge: true));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Engeller ve eksikler bilgisi kaydedildi!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Navigator.pop(context); // İsteğe bağlı geri dön
-      }
-    } catch (e) {
-      print("Firestore Kayıt Hatası (Engeller): $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Hata: Bilgiler kaydedilemedi. $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Formu Kaydetme Ana Fonksiyonu
-  Future<void> _submitForm() async {
-    // Manuel validasyon (Soru 3 Radio)
-    if (_feelingStuckStatus == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen 3. soruda ilerleme hissinizi belirtin.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-
-    // FormField validasyonları
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen formdaki eksik veya hatalı alanları düzeltin.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
 
     setState(() {
       _isSaving = true;
     });
-    await _saveToFirestore();
-    if (mounted) {
-      setState(() {
-        _isSaving = false;
-      });
+    try {
+      await _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('profile_data')
+          .doc('blockers_challenges_v3') // Versiyon 3
+          .set(blockersData, SetOptions(merge: true));
+      if (mounted) {
+        _showFeedback(
+          'Engeller ve eksikler bilgisi kaydedildi!',
+          isError: false,
+        );
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+      }
+    } catch (e) {
+      print("Firestore Kayıt Hatası (Engeller v3): $e");
+      _showFeedback('Bilgiler kaydedilirken bir hata oluştu.', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
+  // ------------------------------------
+
+  // --- Form Gönderme ---
+  Future<void> _submitForm() async {
+    if (_feelingStuckStatus == null) {
+      _showFeedback('Lütfen 3. soruyu yanıtlayın.', isError: true);
+      return;
+    }
+    if (!_codingChallengesOptions.containsValue(true)) {
+      _showFeedback('Lütfen 4. soruda en az bir zorluk seçin.', isError: true);
+      return;
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      _showFeedback(
+        'Lütfen formdaki işaretli alanları düzeltin.',
+        isError: true,
+      );
+      return;
+    }
+    await _saveToFirestore();
+  }
+  // ------------------------------------
+
+  // --- Geri Bildirim Gösterme ---
+  void _showFeedback(String message, {required bool isError}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(10),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+  // ------------------------------------
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    if (_isLoadingPage) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Yükleniyor...')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_loadingError.isNotEmpty && !_isLoadingPage) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Hata')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              _loadingError,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Engeller & Gelişim Alanları')),
+      appBar: AppBar(
+        title: const Text('Profil: Engeller & Gelişim'),
+        elevation: 1,
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ElevatedButton.icon(
+          icon: _isSaving ? Container() : const Icon(Icons.save_rounded),
+          label:
+              _isSaving
+                  ? const SizedBox(
+                    height: 24.0,
+                    width: 24.0,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.0,
+                      color: Colors.white,
+                    ),
+                  )
+                  : const Text('Kaydet ve Geri Dön'),
+          onPressed: _isSaving ? null : _submitForm,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+            padding: const EdgeInsets.symmetric(vertical: 15.0),
+            textStyle: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+            minimumSize: const Size(double.infinity, 50),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+        padding: const EdgeInsets.only(
+          left: 16.0,
+          right: 16.0,
+          top: 20.0,
+          bottom: 100.0,
+        ),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              // --- Soru 1: Zorlanılan Teknik Konular ---
+              // --- Soru 1 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 1,
-                questionText:
-                    'Öğrenmekte veya uygulamakta zorlandığınız teknik konular neler?',
+                icon: Icons.warning_amber_rounded,
+                questionText: 'Zorlandığın Teknik Konular',
                 child: Column(
                   children: [
-                    // Checkbox seçenekleri
-                    ..._struggledTopicsOptions.keys.map((topic) {
-                      return CheckboxListTile(
-                        title: Text(topic),
-                        value: _struggledTopicsOptions[topic],
-                        onChanged: (bool? newValue) {
-                          setState(() {
-                            _struggledTopicsOptions[topic] = newValue!;
-                          });
-                        },
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      );
-                    }).toList(),
-                    const SizedBox(height: 10),
-                    // Açıklama Alanı
-                    TextFormField(
-                      controller: _topicDetailsController,
-                      decoration: const InputDecoration(
-                        labelText:
-                            'Bu konulardaki zorluklarınızı kısaca açıklayın (isteğe bağlı)',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12.0,
-                          vertical: 14.0,
+                    ..._struggledTopicsOptions.keys
+                        .map(
+                          (topic) => CheckboxListTile(
+                            title: Text(
+                              topic,
+                              style: theme.textTheme.bodyLarge,
+                            ),
+                            value: _struggledTopicsOptions[topic],
+                            onChanged: (bool? newValue) {
+                              setState(() {
+                                _struggledTopicsOptions[topic] = newValue!;
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                            dense: false,
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
+                          ),
+                        )
+                        .toList(),
+                    if (_struggledTopicsOptions['Diğer (Açıklayınız)'] == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0),
+                        child: TextFormField(
+                          controller: _topicDetailsController,
+                          decoration: _inputDecoration(
+                            context,
+                            'Diğer Zorlandığınız Konuyu Açıklayın',
+                            Icons.edit_note_rounded,
+                          ),
+                          validator: (value) {
+                            if (_struggledTopicsOptions['Diğer (Açıklayınız)'] ==
+                                    true &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Lütfen diğer konuyu açıklayın.';
+                            }
+                            return null;
+                          },
                         ),
                       ),
-                      maxLines: 3,
-                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
 
-              // --- Soru 2: İlerleme Zorluğu Nedenleri ---
+              // --- Soru 2 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 2,
-                questionText: 'Sizce neden ilerlemekte zorlanıyorsunuz?',
+                icon: Icons.pan_tool_alt_rounded,
+                questionText: 'İlerlemene Engel Olan Nedenler',
                 child: Column(
                   children:
-                      _progressionBlockersOptions.keys.map((blocker) {
-                        return CheckboxListTile(
-                          title: Text(blocker),
-                          value: _progressionBlockersOptions[blocker],
-                          onChanged: (bool? newValue) {
-                            setState(() {
-                              _progressionBlockersOptions[blocker] = newValue!;
-                            });
-                          },
-                          controlAffinity: ListTileControlAffinity.leading,
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                        );
-                      }).toList(),
+                      _progressionBlockersOptions.keys
+                          .map(
+                            (blocker) => CheckboxListTile(
+                              title: Text(
+                                blocker,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                              value: _progressionBlockersOptions[blocker],
+                              onChanged: (bool? newValue) {
+                                setState(() {
+                                  _progressionBlockersOptions[blocker] =
+                                      newValue!;
+                                });
+                              },
+                              controlAffinity: ListTileControlAffinity.leading,
+                              dense: false,
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: colorScheme.primary,
+                            ),
+                          )
+                          .toList(),
                 ),
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
 
-              // --- Soru 3: İlerleyememe Hissi ---
+              // --- Soru 3 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 3,
-                questionText:
-                    'Teknik bilginiz olmasına rağmen ilerleyemiyormuş gibi hissediyor musunuz?',
+                icon: Icons.sentiment_dissatisfied_rounded,
+                questionText: 'İlerleyememe Hissi',
                 child: Column(
                   children: [
-                    // Radio seçenekleri
-                    ..._feelingStuckOptions.map((option) {
-                      return RadioListTile<String>(
-                        title: Text(option),
-                        value: option,
-                        groupValue: _feelingStuckStatus,
-                        onChanged: (String? value) {
-                          setState(() {
-                            _feelingStuckStatus = value;
-                          });
-                        },
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      );
-                    }).toList(),
-                    // Evet veya Bazen seçilirse Açıklama Alanı
+                    Text(
+                      'Teknik bilgin olmasına rağmen ilerleyemiyormuş gibi hissediyor musun?',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    ..._feelingStuckOptions
+                        .map(
+                          (option) => RadioListTile<String>(
+                            title: Text(option),
+                            value: option,
+                            groupValue: _feelingStuckStatus,
+                            onChanged: (String? value) {
+                              setState(() {
+                                _feelingStuckStatus = value;
+                              });
+                            },
+                            dense: false,
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
+                          ),
+                        )
+                        .toList(),
                     if (_feelingStuckStatus == 'Evet' ||
                         _feelingStuckStatus == 'Bazen')
                       Padding(
                         padding: const EdgeInsets.only(top: 10.0),
                         child: TextFormField(
                           controller: _feelingStuckDetailsController,
-                          decoration: const InputDecoration(
-                            labelText:
-                                'Bu hissin nedenini kısaca açıklayın (isteğe bağlı)',
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 14.0,
-                            ),
+                          decoration: _inputDecoration(
+                            context,
+                            'Bu hissin nedenini kısaca açıklayın (isteğe bağlı)',
+                            Icons.edit_note_rounded,
                           ),
                           maxLines: 3,
                         ),
                       ),
                   ],
                 ),
-                // Validasyon _submitForm içinde yapılıyor
               ),
-              const SizedBox(height: 20.0),
+              const SizedBox(height: 24.0),
 
-              // --- Soru 4: Kod Yazarken En Zorlayan Şey ---
+              // --- Soru 4 ---
               _buildQuestionCard(
                 context: context,
-                questionNumber: 4,
-                questionText: 'Kod yazarken sizi en çok zorlayan şey ne?',
-                child: TextFormField(
-                  controller: _codingChallengeController,
-                  decoration: const InputDecoration(
-                    hintText:
-                        'Örn: Hataları bulup çözmek, doğru yapıyı kurmak, nereden başlayacağımı bilememek...',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12.0,
-                      vertical: 14.0,
-                    ),
-                  ),
-                  maxLines: 3,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Lütfen sizi en çok zorlayan şeyi belirtin.';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              const SizedBox(height: 20.0),
-
-              // --- Soru 5: "Öğrenmeden İlerleyemem" Konusu ---
-              _buildQuestionCard(
-                context: context,
-                questionNumber: 5,
-                questionText:
-                    'Şu an "şu konuyu öğrenmeden ilerleyemem" dediğiniz bir şey var mı?',
-                child: TextFormField(
-                  controller: _mustLearnTopicController,
-                  decoration: const InputDecoration(
-                    hintText: 'Varsa belirtin (isteğe bağlı)...',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12.0,
-                      vertical: 14.0,
-                    ),
-                  ),
-                  // Validator yok, isteğe bağlı alan
-                ),
-              ),
-              const SizedBox(height: 32.0),
-
-              // --- Kaydet Butonu ---
-              Center(
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _submitForm,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40.0,
-                      vertical: 15.0,
-                    ),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                  child:
-                      _isSaving
-                          ? const SizedBox(
-                            height: 24.0,
-                            width: 24.0,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.0,
-                              color: Colors.white,
+                icon: Icons.code_off_rounded,
+                questionText: 'Kod Yazarken En Çok Zorlayan Şeyler',
+                child: Column(
+                  children: [
+                    ..._codingChallengesOptions.keys
+                        .map(
+                          (challenge) => CheckboxListTile(
+                            title: Text(
+                              challenge,
+                              style: theme.textTheme.bodyLarge,
                             ),
-                          )
-                          : const Text('Kaydet ve Devam Et'),
+                            value: _codingChallengesOptions[challenge],
+                            onChanged: (bool? newValue) {
+                              setState(() {
+                                _codingChallengesOptions[challenge] = newValue!;
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                            dense: false,
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: colorScheme.primary,
+                          ),
+                        )
+                        .toList(),
+                    if (_codingChallengesOptions['Diğer (Açıklayınız)'] == true)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12.0),
+                        child: TextFormField(
+                          controller: _otherCodingChallengeController,
+                          decoration: _inputDecoration(
+                            context,
+                            'Diğer Zorluğu Açıklayın',
+                            Icons.edit_note_rounded,
+                          ),
+                          validator: (value) {
+                            if (_codingChallengesOptions['Diğer (Açıklayınız)'] ==
+                                    true &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Lütfen diğer zorluğu açıklayın.';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24.0),
+
+              // --- Soru 5 ---
+              _buildQuestionCard(
+                context: context,
+                icon: Icons.key_rounded,
+                questionText: 'Öncelikli Öğrenme Konusu',
+                child: TextFormField(
+                  controller: _priorityLearnTopicController,
+                  decoration: _inputDecoration(
+                    context,
+                    '"Şu konuyu öğrenmeden ilerleyemem" dediğin şey (isteğe bağlı)',
+                    Icons.vpn_key_rounded,
+                  ),
                 ),
               ),
               const SizedBox(height: 20.0),
@@ -390,32 +563,95 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
     );
   }
 
-  // Yardımcı Widget (Değişiklik yok)
+  // --- Düzeltilmiş Yardımcı Kart Widget'ı ---
   Widget _buildQuestionCard({
     required BuildContext context,
-    required int questionNumber,
+    required IconData icon,
     required String questionText,
     required Widget child,
   }) {
+    final theme = Theme.of(context);
     return Card(
-      elevation: 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '$questionNumber. $questionText',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Icon(icon, color: theme.colorScheme.primary, size: 26),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    questionText,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 19,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12.0),
-            child,
+            const SizedBox(height: 16.0),
+            child, // Asıl input widget'ları
           ],
         ),
       ),
     );
   }
+  // ------------------------------------------
+
+  // --- Düzeltilmiş InputDecoration için Yardımcı Fonksiyon ---
+  InputDecoration _inputDecoration(
+    BuildContext context,
+    String label,
+    IconData? prefixIcon,
+  ) {
+    final theme = Theme.of(context);
+    return InputDecoration(
+      labelText: label,
+      hintText:
+          label.contains("açıklayın") ||
+                  label.contains("detay") ||
+                  label.contains("şey ne") ||
+                  label.contains("dediğin şey") ||
+                  label.contains("konu var mı")
+              ? 'Detayları buraya yazın...'
+              : null,
+      prefixIcon:
+          prefixIcon != null
+              ? Icon(
+                prefixIcon,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
+              )
+              : null,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: theme.colorScheme.outline.withOpacity(0.5),
+          width: 1.0,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 14.0,
+        vertical: 16.0,
+      ),
+      floatingLabelBehavior: FloatingLabelBehavior.auto,
+      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+      hintStyle: TextStyle(
+        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+      ),
+    );
+  }
+
+  // ------------------------------------------
 }

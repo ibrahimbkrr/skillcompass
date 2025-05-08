@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Firebase Authentication paketi
 // Kayıt ekranına yönlendirmek için import ediyoruz
-import 'package:skillcompass_frontend/screens/registration_screen.dart';
+import 'package:skillcompass_frontend/features/auth/presentation/registration_screen.dart';
 // Başarılı giriş sonrası yönlendirilecek Dashboard sayfasını import ediyoruz
-import 'package:skillcompass_frontend/screens/dashboard_screen.dart'; // Bu satırı ekleyin
+import 'package:skillcompass_frontend/features/dashboard/presentation/dashboard_screen.dart'; // Bu satırı ekleyin
+// import 'package:skillcompass_frontend/features/dashboard/presentation/home_screen.dart';
 // Artık başarılı giriş sonrası HomeScreen'a gitmiyoruz, bu importu silebilir veya yorum satırı yapabilirsiniz
 // import 'package:skillcompass_frontend/screens/home_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart' as my_auth;
+import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,53 +31,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Giriş işlemi için fonksiyon
   void _loginUser() async {
-    // Form validasyonunu kontrol et
     if (_formKey.currentState!.validate()) {
       String email = _emailController.text.trim();
       String password = _passwordController.text.trim();
-
       try {
-        // Firebase ile giriş işlemini başlat
-        UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-
-        // Giriş başarılıysa
-        User? user = userCredential.user;
-
-        if (user != null) {
-          print('Kullanıcı başarıyla giriş yaptı: ${user.email}');
-
-          // Kullanıcıya başarı mesajı göster (isteğe bağlı, yönlendirme olacağı için hemen kaybolabilir)
+        final authProvider = Provider.of<my_auth.AuthProvider>(context, listen: false);
+        await authProvider.signIn(email, password);
+        if (authProvider.isLoggedIn) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Giriş başarılı! Yönlendiriliyorsunuz...'),
               backgroundColor: Colors.green,
             ),
           );
-
-          // BAŞARILI GİRİŞ SONRASI DASHBOARD SAYFASINA YÖNLENDİRME
-          // Navigator.pushReplacement kullanarak Giriş ekranını gezinti yığınından kaldırıp Dashboard'u ekliyoruz
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (context) => const DashboardScreen(),
-            ), // DashboardScreen'a yönlendiriyoruz
-          );
-        } else {
-          // Giriş başarılı oldu ama user nesnesi null döndü (nadiren olur)
-          print('Giriş sırasında bir hata oluştu (user null).');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Giriş sırasında bir hata oluştu.'),
-              backgroundColor: Colors.redAccent,
             ),
           );
         }
       } on FirebaseAuthException catch (e) {
-        // Firebase Authentication hatalarını yakala
-        print('Giriş hatası: ${e.code}');
         String errorMessage;
         if (e.code == 'user-not-found') {
           errorMessage = 'Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı.';
@@ -89,8 +67,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       } catch (e) {
-        // Diğer genel hataları yakala
-        print('Giriş sırasında beklenmeyen bir hata oluştu: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Beklenmeyen bir hata oluştu: $e'),
@@ -112,7 +88,18 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Giriş Yap')),
+      appBar: AppBar(
+        title: const Text('Giriş Yap'),
+        actions: [
+          IconButton(
+            icon: Icon(Theme.of(context).brightness == Brightness.dark ? Icons.light_mode : Icons.dark_mode),
+            onPressed: () {
+              Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
+            },
+            tooltip: 'Tema Değiştir',
+          ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),

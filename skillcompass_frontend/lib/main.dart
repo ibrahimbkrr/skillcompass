@@ -1,50 +1,49 @@
 // Gerekli paketleri import ediyoruz
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
+import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
 
-// firebase_options dosyasını import ediyoruz (flutterfire configure komutunun oluşturduğu dosya)
+// firebase_options dosyasını import ediyoruz
 import 'firebase_options.dart';
 
 // Oluşturduğumuz ekranları import ediyoruz
-import 'package:skillcompass_frontend/screens/registration_screen.dart'; // Kayıt ekranını import ettik
-import 'package:skillcompass_frontend/screens/login_screen.dart'; // Giriş ekranını import ettik
+import 'package:skillcompass_frontend/features/auth/presentation/registration_screen.dart';
+import 'package:skillcompass_frontend/features/auth/presentation/login_screen.dart';
 
-// Uygulamanın başlangıç noktası olan main fonksiyonu
-// async anahtar kelimesini ekliyoruz çünkü Firebase başlatma işlemi asenkrondur (await kullanacağız)
+// Yeni tema yapısını import ediyoruz
+import 'package:skillcompass_frontend/core/theme/app_theme.dart';
+import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
+
 void main() async {
-  // Flutter motorunun widget binding'lerinin başlatıldığından emin oluyoruz.
-  // Firebase gibi native kodlarla etkileşime geçen eklentiler için bu gereklidir.
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Firebase'i projemiz için başlatıyoruz.
-  // flutter_options.dart dosyasındaki platforma özel seçenekleri kullanıyoruz.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // Uygulamayı başlatıyoruz.
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-// Uygulamamızın temel widget'ı
-// Genellikle StatelessWidget veya StatefulWidget olur
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return MaterialApp(
-      title: 'SkillCompass Frontend', // Uygulamanın başlığı
-      theme: ThemeData(
-        primarySwatch: Colors.blue, // Uygulamanın ana renk teması
-        // Diğer tema ayarları buraya eklenebilir
-      ),
-      // Uygulamanın ilk açılacak sayfası Giriş Ekranı olarak ayarlandı
+      title: 'SkillCompass Frontend',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeProvider.themeMode,
       home: const LoginScreen(),
-      debugShowCheckedModeBanner: false, // Debug bandını kaldırmak için
+      debugShowCheckedModeBanner: false,
     );
   }
 }
-
-// Not: MyHomePage widget'ı hala dosyanın altında durabilir ama şu an kullanılmayacak.
-// İsterseniz silebilirsiniz veya ileride tekrar kullanmak üzere bırakabilirsiniz.
-// class MyHomePage extends StatefulWidget { ... }
-// class _MyHomePageState extends State<MyHomePage> { ... }

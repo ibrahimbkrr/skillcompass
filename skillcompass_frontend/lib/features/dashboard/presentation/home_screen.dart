@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Kullanıcının UID'sini almak için
 import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore'dan veri çekmek ve kaydetmek için
-import 'package:skillcompass_frontend/screens/login_screen.dart'; // Çıkış yaptıktan sonra yönlendirmek için
+// import 'package:skillcompass_frontend/features/auth/presentation/login_screen.dart'; // Çıkış yaptıktan sonra yönlendirmek için
 import 'package:intl/intl.dart'; // Tarih formatlamak için (pubspec.yaml'a intl paketi eklenmeli)
 
 // intl paketini eklemek için terminalde: flutter pub add intl

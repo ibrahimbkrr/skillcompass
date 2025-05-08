@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
+import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
+import 'package:skillcompass_frontend/shared/widgets/error_message.dart';
+import 'package:skillcompass_frontend/shared/widgets/input_decoration_helper.dart';
+import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
 
 class CareerVisionScreen extends StatefulWidget {
   const CareerVisionScreen({super.key});
@@ -358,29 +364,23 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final userData = userProvider.userData;
+    final isLoading = userProvider.isLoading;
+    final error = userProvider.error;
+    if (isLoading) {
+      return const Scaffold(
+        body: LoadingIndicator(),
+      );
+    }
+    if (error != null) {
+      return Scaffold(
+        body: ErrorMessage(message: 'Hata: $error'),
+      );
+    }
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    if (_isLoadingPage) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Yükleniyor...')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_loadingError.isNotEmpty && !_isLoadingPage) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Hata')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              _loadingError,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -459,7 +459,7 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _oneYearDetailsController,
-                      decoration: _inputDecoration(
+                      decoration: customInputDecoration(
                         context,
                         'Bu hedefle ilgili spesifik detaylar (isteğe bağlı)',
                         Icons.edit_note_rounded,
@@ -501,7 +501,7 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _fiveYearDetailsController,
-                      decoration: _inputDecoration(
+                      decoration: customInputDecoration(
                         context,
                         'Bu vizyonla ilgili detaylar (isteğe bağlı)',
                         Icons.edit_note_rounded,

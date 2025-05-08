@@ -4,17 +4,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async'; // For Future.wait
 import 'package:http/http.dart' as http; // For HTTP requests
 import 'dart:convert'; // For JSON handling
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
 
 // Import necessary screen files
-import 'package:skillcompass_frontend/screens/login_screen.dart';
-import 'package:skillcompass_frontend/screens/identity_status_screen.dart';
-import 'package:skillcompass_frontend/screens/technical_profile_screen.dart';
-import 'package:skillcompass_frontend/screens/learning_thinking_style_screen.dart';
-import 'package:skillcompass_frontend/screens/career_vision_screen.dart';
-import 'package:skillcompass_frontend/screens/blockers_challenges_screen.dart';
-import 'package:skillcompass_frontend/screens/support_community_screen.dart';
-import 'package:skillcompass_frontend/screens/inner_obstacles_screen.dart';
-import 'package:skillcompass_frontend/screens/analysis_report_screen.dart'; // Analysis report screen
+import 'package:skillcompass_frontend/features/auth/presentation/login_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/identity_status_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/technical_profile_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/learning_thinking_style_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/career_vision_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/blockers_challenges_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/support_community_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/inner_obstacles_screen.dart';
+import 'package:skillcompass_frontend/features/analysis/presentation/analysis_report_screen.dart'; // Analysis report screen
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -55,12 +57,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      userProvider.fetchUserData();
+    });
     _currentUser = _auth.currentUser;
     if (_currentUser != null) {
-      _fetchUserData(); // Fetch basic user data on init
-      // TODO: Implement _checkAnalysisStatus() to see if a report already exists
+      _fetchUserData();
     } else {
-      // If user is null in initState, build method will handle redirection
       setState(() {
         _isLoading = false;
       });
@@ -261,6 +265,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final userData = userProvider.userData;
+    final isLoading = userProvider.isLoading;
+    final error = userProvider.error;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -282,8 +290,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Calculate user name for display
     String userName = 'Kullanıcı'; // Default user name
-    if (_userData != null) {
-      String firstName = _userData!['firstName'] ?? '';
+    if (userData != null) {
+      String firstName = userData['firstName'] ?? '';
       userName =
           firstName.trim().isNotEmpty
               ? firstName.trim()

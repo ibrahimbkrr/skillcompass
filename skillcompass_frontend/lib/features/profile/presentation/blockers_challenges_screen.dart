@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
+import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
+import 'package:skillcompass_frontend/shared/widgets/error_message.dart';
+import 'package:skillcompass_frontend/shared/widgets/input_decoration_helper.dart';
+import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
 
 class BlockersChallengesScreen extends StatefulWidget {
   const BlockersChallengesScreen({super.key});
@@ -286,29 +292,23 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final userData = userProvider.userData;
+    final isLoading = userProvider.isLoading;
+    final error = userProvider.error;
+    if (isLoading) {
+      return const Scaffold(
+        body: LoadingIndicator(),
+      );
+    }
+    if (error != null) {
+      return Scaffold(
+        body: ErrorMessage(message: 'Hata: $error'),
+      );
+    }
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    if (_isLoadingPage) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Yükleniyor...')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_loadingError.isNotEmpty && !_isLoadingPage) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Hata')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              _loadingError,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -389,10 +389,10 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
                         padding: const EdgeInsets.only(top: 12.0),
                         child: TextFormField(
                           controller: _topicDetailsController,
-                          decoration: _inputDecoration(
+                          decoration: customInputDecoration(
                             context,
-                            'Diğer Zorlandığınız Konuyu Açıklayın',
-                            Icons.edit_note_rounded,
+                            'Engel/Zorluk',
+                            Icons.block,
                           ),
                           validator: (value) {
                             if (_struggledTopicsOptions['Diğer (Açıklayınız)'] ==
@@ -476,10 +476,10 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
                         padding: const EdgeInsets.only(top: 10.0),
                         child: TextFormField(
                           controller: _feelingStuckDetailsController,
-                          decoration: _inputDecoration(
+                          decoration: customInputDecoration(
                             context,
-                            'Bu hissin nedenini kısaca açıklayın (isteğe bağlı)',
-                            Icons.edit_note_rounded,
+                            'Çözüm',
+                            Icons.lightbulb,
                           ),
                           maxLines: 3,
                         ),
@@ -521,10 +521,10 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
                         padding: const EdgeInsets.only(top: 12.0),
                         child: TextFormField(
                           controller: _otherCodingChallengeController,
-                          decoration: _inputDecoration(
+                          decoration: customInputDecoration(
                             context,
-                            'Diğer Zorluğu Açıklayın',
-                            Icons.edit_note_rounded,
+                            'Engel/Zorluk',
+                            Icons.block,
                           ),
                           validator: (value) {
                             if (_codingChallengesOptions['Diğer (Açıklayınız)'] ==
@@ -548,10 +548,10 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
                 questionText: 'Öncelikli Öğrenme Konusu',
                 child: TextFormField(
                   controller: _priorityLearnTopicController,
-                  decoration: _inputDecoration(
+                  decoration: customInputDecoration(
                     context,
-                    '"Şu konuyu öğrenmeden ilerleyemem" dediğin şey (isteğe bağlı)',
-                    Icons.vpn_key_rounded,
+                    'Çözüm',
+                    Icons.lightbulb,
                   ),
                 ),
               ),
@@ -602,56 +602,5 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
       ),
     );
   }
-  // ------------------------------------------
-
-  // --- Düzeltilmiş InputDecoration için Yardımcı Fonksiyon ---
-  InputDecoration _inputDecoration(
-    BuildContext context,
-    String label,
-    IconData? prefixIcon,
-  ) {
-    final theme = Theme.of(context);
-    return InputDecoration(
-      labelText: label,
-      hintText:
-          label.contains("açıklayın") ||
-                  label.contains("detay") ||
-                  label.contains("şey ne") ||
-                  label.contains("dediğin şey") ||
-                  label.contains("konu var mı")
-              ? 'Detayları buraya yazın...'
-              : null,
-      prefixIcon:
-          prefixIcon != null
-              ? Icon(
-                prefixIcon,
-                size: 20,
-                color: theme.colorScheme.onSurfaceVariant,
-              )
-              : null,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(
-          color: theme.colorScheme.outline.withOpacity(0.5),
-          width: 1.0,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
-      ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14.0,
-        vertical: 16.0,
-      ),
-      floatingLabelBehavior: FloatingLabelBehavior.auto,
-      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-      hintStyle: TextStyle(
-        color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
-      ),
-    );
-  }
-
   // ------------------------------------------
 }

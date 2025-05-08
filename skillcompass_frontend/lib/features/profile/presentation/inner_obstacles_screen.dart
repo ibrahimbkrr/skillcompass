@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
+import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
+import 'package:skillcompass_frontend/shared/widgets/error_message.dart';
+import 'package:skillcompass_frontend/shared/widgets/input_decoration_helper.dart';
+import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
 
 class InnerObstaclesScreen extends StatefulWidget {
   const InnerObstaclesScreen({super.key});
@@ -231,15 +237,22 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final userData = userProvider.userData;
+    final isLoading = userProvider.isLoading;
+    final error = userProvider.error;
+    if (isLoading) {
+      return const Scaffold(
+        body: LoadingIndicator(),
+      );
+    }
+    if (error != null) {
+      return Scaffold(
+        body: ErrorMessage(message: 'Hata: $error'),
+      );
+    }
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    if (_isLoadingPage) {
-      /* Yükleniyor */
-    }
-    if (_loadingError.isNotEmpty && !_isLoadingPage) {
-      /* Hata */
-    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profil: İçsel Engeller'), elevation: 1),
@@ -317,7 +330,7 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
                         padding: const EdgeInsets.only(top: 12.0),
                         child: TextFormField(
                           controller: _otherInternalBlockerController,
-                          decoration: _inputDecoration(
+                          decoration: customInputDecoration(
                             context,
                             'Diğer İçsel Engeli Açıklayın',
                             Icons.edit_note_rounded,
@@ -372,7 +385,7 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
                         padding: const EdgeInsets.only(top: 10.0),
                         child: TextFormField(
                           controller: _fearOfFailureDetailsController,
-                          decoration: _inputDecoration(
+                          decoration: customInputDecoration(
                             context,
                             'Nerede, ne zaman veya nasıl geri çekti? (isteğe bağlı)',
                             Icons.edit_note_rounded,
@@ -392,7 +405,7 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
                 questionText: 'Vazgeçme Anıları',
                 child: TextFormField(
                   controller: _gaveUpSituationController,
-                  decoration: _inputDecoration(
+                  decoration: customInputDecoration(
                     context,
                     'En son bir hedef koyup vazgeçtiğin durumu anlatır mısın? (isteğe bağlı)',
                     Icons.edit_note_rounded,
@@ -409,7 +422,7 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
                 questionText: 'Ön Koşul İnançları',
                 child: TextFormField(
                   controller: _prerequisiteBeliefController,
-                  decoration: _inputDecoration(
+                  decoration: customInputDecoration(
                     context,
                     '"Şunu yapmadan/olmadan olmaz" dediğin bir şey var mı? (isteğe bağlı)',
                     Icons.edit_note_rounded,
@@ -425,7 +438,7 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
                 questionText: 'SkillCompass\'tan Beklentin',
                 child: TextFormField(
                   controller: _appExpectationController,
-                  decoration: _inputDecoration(
+                  decoration: customInputDecoration(
                     context,
                     'Seni gerçekten ne motive eder? Nasıl yardımcı olabiliriz?',
                     Icons.edit_note_rounded,
@@ -489,7 +502,7 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
   // ------------------------------------------
 
   // --- Düzeltilmiş InputDecoration için Yardımcı Fonksiyon ---
-  InputDecoration _inputDecoration(
+  InputDecoration customInputDecoration(
     BuildContext context,
     String label,
     IconData? prefixIcon,

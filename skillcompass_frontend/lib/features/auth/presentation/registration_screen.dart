@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:skillcompass_frontend/features/auth/presentation/login_screen.dart';
+import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/core/widgets/custom_text_field.dart';
+import 'package:skillcompass_frontend/core/widgets/custom_button.dart';
+import 'package:skillcompass_frontend/core/widgets/custom_snackbar.dart';
+import 'package:skillcompass_frontend/core/constants/app_constants.dart';
+import 'package:skillcompass_frontend/core/utils/validators.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -11,173 +18,200 @@ class RegistrationScreen extends StatefulWidget {
 }
 
 class _RegistrationScreenState extends State<RegistrationScreen> {
+  // Controllers
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  // Form key
   final _formKey = GlobalKey<FormState>();
+
+  // Firebase instances
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  void _registerUser() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    try {
-      String firstName = _firstNameController.text.trim();
-      String lastName = _lastNameController.text.trim();
-      String email = _emailController.text.trim();
-      String password = _passwordController.text.trim();
-
-      UserCredential userCredential = await _auth
-          .createUserWithEmailAndPassword(email: email, password: password);
-
-      User? user = userCredential.user;
-
-      if (user != null) {
-        await _firestore.collection('users').doc(user.uid).set({
-          'firstName': firstName,
-          'lastName': lastName,
-          'email': email,
-          'createdAt': Timestamp.now(),
-          'uid': user.uid,
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Kayıt başarılı! Giriş yapabilirsiniz.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Kayıt sırasında bir hata oluştu (user null).'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-      }
-    } on FirebaseAuthException catch (e) {
-      String errorMessage;
-      if (e.code == 'weak-password') {
-        errorMessage = 'Şifre çok zayıf.';
-      } else if (e.code == 'email-already-in-use') {
-        errorMessage = 'Bu e-posta adresi zaten kullanılıyor.';
-      } else {
-        errorMessage = 'Kayıt sırasında bir hata oluştu: ${e.message}';
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Beklenmeyen bir hata oluştu: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+  // State variables
+  bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
+    _disposeControllers();
+    super.dispose();
+  }
+
+  void _disposeControllers() {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    super.dispose();
+  }
+
+  Future<void> _registerUser() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final userData = await _createUserAccount();
+      if (userData != null) {
+        await _saveUserDataToFirestore(userData);
+        _showSuccessMessage();
+        _navigateToLoginScreen();
+      }
+    } on FirebaseAuthException catch (e) {
+      _handleFirebaseAuthException(e);
+    } catch (e) {
+      _handleGenericError(e);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<UserCredential?> _createUserAccount() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    
+    return await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  Future<void> _saveUserDataToFirestore(UserCredential userCredential) async {
+    final user = userCredential.user;
+    if (user == null) return;
+
+    await _firestore.collection(AppConstants.usersCollection).doc(user.uid).set({
+      'firstName': _firstNameController.text.trim(),
+      'lastName': _lastNameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'createdAt': Timestamp.now(),
+      'uid': user.uid,
+    });
+  }
+
+  void _showSuccessMessage() {
+    if (!mounted) return;
+    
+    CustomSnackBar.show(
+      context: context,
+      message: 'Kayıt başarılı! Giriş yapabilirsiniz.',
+      type: SnackBarType.success,
+    );
+  }
+
+  void _navigateToLoginScreen() {
+    if (!mounted) return;
+    
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
+  }
+
+  void _handleFirebaseAuthException(FirebaseAuthException e) {
+    if (!mounted) return;
+
+    String errorMessage;
+    switch (e.code) {
+      case 'weak-password':
+        errorMessage = 'Şifre çok zayıf.';
+        break;
+      case 'email-already-in-use':
+        errorMessage = 'Bu e-posta adresi zaten kullanılıyor.';
+        break;
+      default:
+        errorMessage = 'Kayıt sırasında bir hata oluştu: ${e.message}';
+    }
+
+    CustomSnackBar.show(
+      context: context,
+      message: errorMessage,
+      type: SnackBarType.error,
+    );
+  }
+
+  void _handleGenericError(dynamic error) {
+    if (!mounted) return;
+
+    CustomSnackBar.show(
+      context: context,
+      message: 'Beklenmeyen bir hata oluştu: $error',
+      type: SnackBarType.error,
+    );
+  }
+
+  void _togglePasswordVisibility() {
+    setState(() => _obscurePassword = !_obscurePassword);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      appBar: AppBar(title: const Text('Kayıt Ol')),
-      body: Center(
+      appBar: _buildAppBar(theme),
+      body: _buildBody(theme),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(ThemeData theme) {
+    return AppBar(
+      title: const Text('Kayıt Ol'),
+      actions: [
+        IconButton(
+          icon: Icon(theme.brightness == Brightness.dark 
+              ? Icons.light_mode 
+              : Icons.dark_mode),
+          onPressed: () {
+            Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
+          },
+          tooltip: 'Tema Değiştir',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.1),
+            theme.colorScheme.background,
+          ],
+        ),
+      ),
+      child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                const SizedBox(height: 48.0),
-                _buildTextField(
-                  _firstNameController,
-                  'Ad',
-                  Icons.person_outline,
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(theme),
+                    const SizedBox(height: 32),
+                    _buildFormFields(theme),
+                    const SizedBox(height: 32),
+                    _buildButtons(),
+                  ],
                 ),
-                const SizedBox(height: 16.0),
-                _buildTextField(
-                  _lastNameController,
-                  'Soyad',
-                  Icons.person_outline,
-                ),
-                const SizedBox(height: 16.0),
-                _buildTextField(
-                  _emailController,
-                  'E-posta',
-                  Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Lütfen e-postanızı girin';
-                    }
-                    if (!RegExp(r'\S+@\S+\.\S+').hasMatch(value)) {
-                      return 'Lütfen geçerli bir e-posta adresi girin';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16.0),
-                _buildTextField(
-                  _passwordController,
-                  'Şifre',
-                  Icons.lock_outline,
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Lütfen şifrenizi girin';
-                    }
-                    if (value.length < 6) {
-                      return 'Şifre en az 6 karakter olmalı';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24.0),
-                ElevatedButton(
-                  onPressed: _registerUser,
-                  child: const Text('Kayıt Ol'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LoginScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text('Zaten hesabım var? Giriş Yap'),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -185,31 +219,99 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
-  Widget _buildTextField(
-    TextEditingController controller,
-    String label,
-    IconData icon, {
-    TextInputType keyboardType = TextInputType.text,
-    bool obscureText = false,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      obscureText: obscureText,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        prefixIcon: Icon(icon),
-      ),
-      validator:
-          validator ??
-          (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Lütfen $label girin';
-            }
-            return null;
-          },
+  Widget _buildHeader(ThemeData theme) {
+    return Column(
+      children: [
+        Icon(
+          Icons.person_add_rounded,
+          size: 64,
+          color: theme.colorScheme.primary,
+        ),
+        const SizedBox(height: 24),
+        Text(
+          'SkillCompass\'a Hoş Geldiniz',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Hesabınızı oluşturun ve yeteneklerinizi keşfedin',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormFields(ThemeData theme) {
+    return Column(
+      children: [
+        CustomTextField(
+          controller: _firstNameController,
+          label: 'Ad',
+          icon: Icons.person_outline,
+          validator: Validators.required,
+        ),
+        const SizedBox(height: 16),
+        CustomTextField(
+          controller: _lastNameController,
+          label: 'Soyad',
+          icon: Icons.person_outline,
+          validator: Validators.required,
+        ),
+        const SizedBox(height: 16),
+        CustomTextField(
+          controller: _emailController,
+          label: 'E-posta',
+          icon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+          validator: Validators.email,
+        ),
+        const SizedBox(height: 16),
+        CustomTextField(
+          controller: _passwordController,
+          label: 'Şifre',
+          icon: Icons.lock_outline,
+          obscureText: _obscurePassword,
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+              color: theme.colorScheme.primary,
+            ),
+            onPressed: _togglePasswordVisibility,
+          ),
+          validator: Validators.password,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildButtons() {
+    return Column(
+      children: [
+        CustomButton(
+          onPressed: _isLoading ? null : _registerUser,
+          isLoading: _isLoading,
+          text: 'Kayıt Ol',
+        ),
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: _isLoading
+              ? null
+              : () => Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                  ),
+          child: const Text('Zaten hesabım var? Giriş Yap'),
+        ),
+      ],
     );
   }
 }

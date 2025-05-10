@@ -8,6 +8,9 @@ import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
 import 'package:skillcompass_frontend/shared/widgets/error_message.dart';
 import 'package:skillcompass_frontend/shared/widgets/input_decoration_helper.dart';
 import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
+import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
+import 'package:skillcompass_frontend/core/widgets/custom_button.dart';
+import 'package:skillcompass_frontend/core/widgets/custom_snackbar.dart';
 
 // --- Veri Modelleri ---
 class SkillEntry {
@@ -69,7 +72,7 @@ class TechnicalProfileScreen extends StatefulWidget {
   State<TechnicalProfileScreen> createState() => _TechnicalProfileScreenState();
 }
 
-class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
+class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -78,6 +81,7 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
   // --- State Değişkenleri ---
   User? _currentUser;
   bool _isLoadingPage = true;
+  bool _isEditing = false;
   bool _isSaving = false;
   String _loadingError = '';
 
@@ -201,6 +205,154 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
     'Denemeyi / Yer almayı düşünüyorum.',
   ];
 
+  late TabController _tabController;
+
+  // Seçim değişkenleri
+  List<String> _selectedProgrammingLanguages = [];
+  List<String> _selectedFrameworks = [];
+  List<String> _selectedDatabases = [];
+  List<String> _selectedTools = [];
+  List<String> _selectedCloudServices = [];
+  List<String> _selectedDevOpsTools = [];
+  List<String> _selectedSoftSkills = [];
+  String? _selectedExperienceLevel;
+  String? _selectedPreferredRole;
+
+  // Seçenek listeleri
+  final List<String> _programmingLanguages = [
+    'Python',
+    'JavaScript',
+    'Java',
+    'C#',
+    'C++',
+    'TypeScript',
+    'Go',
+    'Ruby',
+    'PHP',
+    'Swift',
+    'Kotlin',
+    'Rust',
+    'Scala',
+    'Dart',
+    'Diğer',
+  ];
+
+  final List<String> _frameworks = [
+    'React',
+    'Angular',
+    'Vue.js',
+    'Django',
+    'Flask',
+    'Spring Boot',
+    'Laravel',
+    'Express.js',
+    'Flutter',
+    'React Native',
+    '.NET',
+    'Ruby on Rails',
+    'FastAPI',
+    'NestJS',
+    'Diğer',
+  ];
+
+  final List<String> _databases = [
+    'MySQL',
+    'PostgreSQL',
+    'MongoDB',
+    'Redis',
+    'SQLite',
+    'Oracle',
+    'SQL Server',
+    'Cassandra',
+    'Elasticsearch',
+    'Neo4j',
+    'Firebase',
+    'DynamoDB',
+    'Diğer',
+  ];
+
+  final List<String> _tools = [
+    'Git',
+    'Docker',
+    'VS Code',
+    'IntelliJ IDEA',
+    'Postman',
+    'Jira',
+    'Confluence',
+    'Figma',
+    'Adobe XD',
+    'Sketch',
+    'Selenium',
+    'Jenkins',
+    'Diğer',
+  ];
+
+  final List<String> _cloudServices = [
+    'AWS',
+    'Azure',
+    'Google Cloud',
+    'Digital Ocean',
+    'Heroku',
+    'Firebase',
+    'Vercel',
+    'Netlify',
+    'Cloudflare',
+    'Diğer',
+  ];
+
+  final List<String> _devOpsTools = [
+    'Docker',
+    'Kubernetes',
+    'Terraform',
+    'Ansible',
+    'Prometheus',
+    'Grafana',
+    'ELK Stack',
+    'GitLab CI',
+    'GitHub Actions',
+    'Jenkins',
+    'ArgoCD',
+    'Diğer',
+  ];
+
+  final List<String> _softSkills = [
+    'Takım Çalışması',
+    'Problem Çözme',
+    'İletişim',
+    'Zaman Yönetimi',
+    'Liderlik',
+    'Adaptasyon',
+    'Analitik Düşünme',
+    'Yaratıcılık',
+    'Stres Yönetimi',
+    'Mentorluk',
+    'Sunum Becerileri',
+    'Müzakere',
+    'Diğer',
+  ];
+
+  final List<String> _experienceLevels = [
+    'Yeni Başlayan (0-1 yıl)',
+    'Junior (1-3 yıl)',
+    'Mid-Level (3-5 yıl)',
+    'Senior (5-8 yıl)',
+    'Lead (8+ yıl)',
+  ];
+
+  final List<String> _preferredRoles = [
+    'Frontend Geliştirici',
+    'Backend Geliştirici',
+    'Full Stack Geliştirici',
+    'DevOps Mühendisi',
+    'Mobil Geliştirici',
+    'UI/UX Tasarımcı',
+    'Veri Bilimci',
+    'Siber Güvenlik Uzmanı',
+    'Sistem Yöneticisi',
+    'Proje Yöneticisi',
+    'Diğer',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -218,6 +370,15 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
         }
       });
     }
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _otherSkillsNotesController.dispose();
+    _struggleDetailsController.dispose();
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSavedData() async {
@@ -227,18 +388,26 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
       _loadingError = '';
     });
     try {
-      DocumentSnapshot<Map<String, dynamic>> snapshot =
-          await _firestore
-              .collection('users')
-              .doc(_currentUser!.uid)
-              .collection('profile_data')
-              .doc('technical_profile_v4') // Versiyon 4
-              .get();
+      DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .collection('profile_data')
+          .doc('technical_profile_v4')
+          .get();
+
       if (snapshot.exists && snapshot.data() != null) {
         final data = snapshot.data()!;
-        if (mounted) {
-          _updateStateWithLoadedData(data);
-        }
+        setState(() {
+          _selectedProgrammingLanguages = List<String>.from(data['programming_languages'] ?? []);
+          _selectedFrameworks = List<String>.from(data['frameworks'] ?? []);
+          _selectedDatabases = List<String>.from(data['databases'] ?? []);
+          _selectedTools = List<String>.from(data['tools'] ?? []);
+          _selectedCloudServices = List<String>.from(data['cloud_services'] ?? []);
+          _selectedDevOpsTools = List<String>.from(data['devops_tools'] ?? []);
+          _selectedSoftSkills = List<String>.from(data['soft_skills'] ?? []);
+          _selectedExperienceLevel = data['experience_level'];
+          _selectedPreferredRole = data['preferred_role'];
+        });
       }
     } catch (e) {
       print("HATA: technical_profile_v4 verisi yüklenemedi: $e");
@@ -250,57 +419,6 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
         });
       }
     }
-  }
-
-  void _updateStateWithLoadedData(Map<String, dynamic> data) {
-    setState(() {
-      List<dynamic> skillsRaw = data['userSkills'] ?? [];
-      _userSkills.clear();
-      for (var item in skillsRaw) {
-        if (item is Map<String, dynamic>) {
-          try {
-            _userSkills.add(SkillEntry.fromMap(item));
-          } catch (e) {
-            print("Beceri verisi okuma hatası: $e");
-          }
-        }
-      }
-      _otherSkillsNotesController.text = data['otherSkillsNotes'] ?? '';
-      List<String> savedAreas = List<String>.from(
-        data['experiencedAreas'] ?? [],
-      );
-      _experiencedAreasOptions.forEach((key, value) {
-        _experiencedAreasOptions[key] = savedAreas.contains(key);
-      });
-      List<dynamic> projectsRaw = data['userProjects'] ?? [];
-      _userProjects.clear();
-      for (var item in projectsRaw) {
-        if (item is Map<String, dynamic>) {
-          try {
-            _userProjects.add(ProjectEntry.fromMap(item));
-          } catch (e) {
-            print("Proje verisi okuma hatası: $e");
-          }
-        }
-      }
-      List<String> savedStruggles = List<String>.from(
-        data['struggledAreas'] ?? [],
-      );
-      _struggledAreasOptions.forEach((key, value) {
-        _struggledAreasOptions[key] = savedStruggles.contains(key);
-      });
-      _struggleDetailsController.text = data['struggleDetails'] ?? '';
-      _selectedProductionExperience = data['productionExperience'];
-      if (!_productionExperienceOptions.contains(_selectedProductionExperience))
-        _selectedProductionExperience = null;
-    });
-  }
-
-  @override
-  void dispose() {
-    _otherSkillsNotesController.dispose();
-    _struggleDetailsController.dispose();
-    super.dispose();
   }
 
   Future<void> _showSelectAddSkillDialog() async {
@@ -723,50 +841,40 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
       _showFeedback('Oturum bulunamadı.', isError: true);
       return;
     }
-    List<String> experiencedAreas =
-        _experiencedAreasOptions.entries
-            .where((e) => e.value)
-            .map((e) => e.key)
-            .toList();
-    List<String> struggledAreas =
-        _struggledAreasOptions.entries
-            .where((e) => e.value)
-            .map((e) => e.key)
-            .toList();
-    List<Map<String, dynamic>> skillsToSave =
-        _userSkills.map((s) => s.toMap()).toList();
-    List<Map<String, dynamic>> projectsToSave =
-        _userProjects.map((p) => p.toMap()).toList();
-    Map<String, dynamic> technicalData = {
-      'userSkills': skillsToSave,
-      'otherSkillsNotes': _otherSkillsNotesController.text.trim(),
-      'experiencedAreas': experiencedAreas,
-      'userProjects': projectsToSave,
-      'struggledAreas': struggledAreas,
-      'struggleDetails':
-          _struggledAreasOptions.containsValue(true)
-              ? _struggleDetailsController.text.trim()
-              : null,
-      'productionExperience': _selectedProductionExperience,
-      'lastUpdated': Timestamp.now(),
-    };
+
     setState(() {
       _isSaving = true;
     });
+
     try {
+      Map<String, dynamic> technicalData = {
+        'programming_languages': _selectedProgrammingLanguages,
+        'frameworks': _selectedFrameworks,
+        'databases': _selectedDatabases,
+        'tools': _selectedTools,
+        'cloud_services': _selectedCloudServices,
+        'devops_tools': _selectedDevOpsTools,
+        'soft_skills': _selectedSoftSkills,
+        'experience_level': _selectedExperienceLevel,
+        'preferred_role': _selectedPreferredRole,
+        'lastUpdated': Timestamp.now(),
+      };
+
       await _firestore
           .collection('users')
           .doc(currentUser.uid)
           .collection('profile_data')
           .doc('technical_profile_v4')
-          .set(technicalData, SetOptions(merge: true));
+          .set(technicalData);
+
       if (mounted) {
         _showFeedback(
           'Teknik profil bilgileri başarıyla kaydedildi!',
           isError: false,
         );
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+        setState(() {
+          _isEditing = false;
+        });
       }
     } catch (e) {
       print("Firestore Kayıt Hatası (Teknik Profil v4): $e");
@@ -833,408 +941,630 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
       appBar: AppBar(
         title: const Text('Profil: Teknik Yetenekler'),
         elevation: 1,
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton.icon(
-          icon: _isSaving ? Container() : const Icon(Icons.save_rounded),
-          label:
-              _isSaving
-                  ? const SizedBox(
-                    height: 24.0,
-                    width: 24.0,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
-                      color: Colors.white,
-                    ),
-                  )
-                  : const Text('Kaydet ve Geri Dön'),
-          onPressed: _isSaving ? null : _submitForm,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colorScheme.primary,
-            foregroundColor: colorScheme.onPrimary,
-            padding: const EdgeInsets.symmetric(vertical: 15.0),
-            textStyle: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
+        actions: [
+          if (!_isEditing)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => setState(() => _isEditing = true),
+              tooltip: 'Düzenle',
             ),
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Teknik Beceriler'),
+            Tab(text: 'Araçlar & Platformlar'),
+            Tab(text: 'Deneyim & Yetkinlikler'),
+          ],
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(
-          left: 16.0,
-          right: 16.0,
-          top: 20.0,
-          bottom: 100.0,
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              // --- Soru 1 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.code_rounded,
-                questionText: 'Teknik Becerilerin',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Bildiğiniz teknolojileri seçin veya ekleyin.',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ),
-                        TextButton.icon(
-                          icon: const Icon(
-                            Icons.add_circle_outline_rounded,
-                            size: 18,
-                          ),
-                          label: const Text('Seç/Ekle'),
-                          onPressed: _showSelectAddSkillDialog,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    _userSkills.isEmpty
-                        ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 20,
-                            horizontal: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Henüz beceri eklemediniz.\n"Seç/Ekle" butonunu kullanın.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        )
-                        : Column(
-                          children:
-                              _userSkills.map((skill) {
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 6.0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          skill.name,
-                                          style: theme.textTheme.titleMedium,
-                                        ),
-                                      ),
-                                      SegmentedButton<String>(
-                                        segments:
-                                            _levelOptions.map((level) {
-                                              return ButtonSegment<String>(
-                                                value: level,
-                                                label: Text(
-                                                  level.substring(0, 3),
-                                                ),
-                                              );
-                                            }).toList(),
-                                        selected: {skill.level},
-                                        onSelectionChanged: (
-                                          Set<String> newSelection,
-                                        ) {
-                                          _updateSkillLevel(
-                                            skill,
-                                            newSelection.first,
-                                          );
-                                        },
-                                        style: SegmentedButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          selectedBackgroundColor:
-                                              _getLevelColor(
-                                                skill.level,
-                                                colorScheme,
-                                              ).withOpacity(0.8),
-                                          selectedForegroundColor: Colors.white,
-                                        ),
-                                        showSelectedIcon: false,
-                                      ),
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.delete_outline_rounded,
-                                          color: colorScheme.error,
-                                          size: 20,
-                                        ),
-                                        onPressed:
-                                            () => setState(
-                                              () => _userSkills.remove(skill),
-                                            ),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        tooltip: 'Sil',
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                        ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _otherSkillsNotesController,
-                      decoration: _inputDecoration(
-                        context,
-                        'Ek Notlar / Diğer Beceriler (isteğe bağlı)',
-                        Icons.notes_rounded,
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-              // --- Soru 2 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.explore_rounded,
-                questionText: 'Deneyimlediğin Alanlar',
-                child: Column(
-                  children:
-                      _experiencedAreasOptions.keys
-                          .map(
-                            (area) => CheckboxListTile(
-                              title: Text(
-                                area,
-                                style: theme.textTheme.bodyLarge,
+      bottomNavigationBar: _isEditing
+          ? Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: _isSaving ? Container() : const Icon(Icons.save_rounded),
+                      label: _isSaving
+                          ? const SizedBox(
+                              height: 24.0,
+                              width: 24.0,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.0,
+                                color: Colors.white,
                               ),
-                              value: _experiencedAreasOptions[area],
-                              onChanged: (bool? newValue) {
-                                setState(() {
-                                  _experiencedAreasOptions[area] = newValue!;
-                                });
-                              },
-                              controlAffinity: ListTileControlAffinity.leading,
-                              dense: false,
-                              contentPadding: EdgeInsets.zero,
-                              activeColor: colorScheme.primary,
-                            ),
-                          )
-                          .toList(),
-                ),
-              ),
-              const SizedBox(height: 24.0),
-              // --- Soru 3 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.integration_instructions_rounded,
-                questionText: 'Projelerin',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Tamamladığınız veya üzerinde çalıştığınız projeleri ekleyin.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    _userProjects.isEmpty
-                        ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 20,
-                            horizontal: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Henüz proje eklemediniz.\n"Yeni Proje Ekle" butonunu kullanın.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        )
-                        : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _userProjects.length,
-                          itemBuilder:
-                              (context, index) => _buildProjectItem(
-                                context,
-                                index,
-                                colorScheme,
-                              ),
+                            )
+                          : const Text('Kaydet'),
+                      onPressed: _isSaving ? null : _saveToFirestore,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 15.0),
+                        textStyle: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
-                    const SizedBox(height: 15),
-                    Center(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(
-                          Icons.add_circle_outline_rounded,
-                          size: 20,
-                        ),
-                        label: const Text('Yeni Proje Ekle'),
-                        onPressed: () => _showAddEditProjectDialog(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                          side: BorderSide(
-                            color: colorScheme.primary.withOpacity(0.5),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-              // --- Soru 4 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.warning_amber_rounded,
-                questionText: 'Teknik Zorluk Alanların',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Proje yaparken en çok hangi konularda zorlandınız?',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    ..._struggledAreasOptions.keys
-                        .map(
-                          (area) => CheckboxListTile(
-                            title: Text(area, style: theme.textTheme.bodyLarge),
-                            value: _struggledAreasOptions[area],
-                            onChanged: (bool? newValue) {
-                              setState(() {
-                                _struggledAreasOptions[area] = newValue!;
-                              });
-                            },
-                            controlAffinity: ListTileControlAffinity.leading,
-                            dense: false,
-                            contentPadding: EdgeInsets.zero,
-                            activeColor: colorScheme.primary,
-                          ),
-                        )
-                        .toList(),
-                    const SizedBox(height: 15),
-                    TextFormField(
-                      controller: _struggleDetailsController,
-                      decoration: _inputDecoration(
-                        context,
-                        'Zorlandığınız durumları açıklayın (isteğe bağlı)',
-                        Icons.edit_note_rounded,
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-              // --- Soru 5 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.rocket_launch_rounded,
-                questionText: 'Üretim Ortamı Deneyimi',
-                child: DropdownButtonFormField<String>(
-                  value: _selectedProductionExperience,
-                  hint: const Text('Açık kaynak, freelance vb. deneyiminiz?'),
-                  isExpanded: true,
-                  decoration: _inputDecoration(
-                    context,
-                    'Deneyim Durumu',
-                    Icons.group_work_rounded,
                   ),
-                  items:
-                      _productionExperienceOptions
-                          .map(
-                            (String option) => DropdownMenuItem<String>(
-                              value: option,
-                              child: Text(option),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedProductionExperience = newValue;
-                    });
-                  },
-                  validator:
-                      (value) =>
-                          value == null ? 'Lütfen durumunuzu seçin.' : null,
-                ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.cancel_rounded),
+                      label: const Text('İptal'),
+                      onPressed: () {
+                        setState(() {
+                          _isEditing = false;
+                          _loadSavedData();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.error,
+                        foregroundColor: colorScheme.onError,
+                        padding: const EdgeInsets.symmetric(vertical: 15.0),
+                        textStyle: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20.0),
-            ],
-          ),
-        ),
-      ),
+            )
+          : null,
+      body: _isLoadingPage
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildTechnicalSkillsTab(theme),
+                _buildToolsTab(theme),
+                _buildExperienceTab(theme),
+              ],
+            ),
     );
   }
 
-  // --- Yardımcı Kart Widget'ı ---
-  Widget _buildQuestionCard({
-    required BuildContext context,
-    required IconData icon,
-    required String questionText,
-    required Widget child,
-  }) {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+  Widget _buildTechnicalSkillsTab(ThemeData theme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(icon, color: theme.colorScheme.primary, size: 26),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    questionText,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 19,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
+            _buildWelcomeCard(theme),
+            const SizedBox(height: 24),
+            _buildCategorySection(
+              theme,
+              'Programlama Dilleri',
+              _buildMultiSelector(
+                theme,
+                _programmingLanguages,
+                _selectedProgrammingLanguages,
+                (value) {
+                  setState(() {
+                    if (_selectedProgrammingLanguages.contains(value)) {
+                      _selectedProgrammingLanguages.remove(value);
+                    } else {
+                      _selectedProgrammingLanguages.add(value);
+                    }
+                  });
+                },
+                'Programlama Dili',
+              ),
             ),
-            const SizedBox(height: 16.0),
-            child,
+            const SizedBox(height: 24),
+            _buildCategorySection(
+              theme,
+              'Framework\'ler',
+              _buildMultiSelector(
+                theme,
+                _frameworks,
+                _selectedFrameworks,
+                (value) {
+                  setState(() {
+                    if (_selectedFrameworks.contains(value)) {
+                      _selectedFrameworks.remove(value);
+                    } else {
+                      _selectedFrameworks.add(value);
+                    }
+                  });
+                },
+                'Framework',
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildCategorySection(
+              theme,
+              'Veritabanları',
+              _buildMultiSelector(
+                theme,
+                _databases,
+                _selectedDatabases,
+                (value) {
+                  setState(() {
+                    if (_selectedDatabases.contains(value)) {
+                      _selectedDatabases.remove(value);
+                    } else {
+                      _selectedDatabases.add(value);
+                    }
+                  });
+                },
+                'Veritabanı',
+              ),
+            ),
           ],
         ),
       ),
     );
   }
-  // ------------------------------------------
+
+  Widget _buildCategorySection(ThemeData theme, String title, Widget content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _getSectionIcon(title),
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Card(
+            elevation: 2,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: content,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToolsTab(ThemeData theme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCategorySection(
+            theme,
+            'Geliştirme Araçları',
+            _buildMultiSelector(
+              theme,
+              _tools,
+              _selectedTools,
+              (value) {
+                setState(() {
+                  if (_selectedTools.contains(value)) {
+                    _selectedTools.remove(value);
+                  } else {
+                    _selectedTools.add(value);
+                  }
+                });
+              },
+              'Araç',
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildCategorySection(
+            theme,
+            'Bulut Servisleri',
+            _buildMultiSelector(
+              theme,
+              _cloudServices,
+              _selectedCloudServices,
+              (value) {
+                setState(() {
+                  if (_selectedCloudServices.contains(value)) {
+                    _selectedCloudServices.remove(value);
+                  } else {
+                    _selectedCloudServices.add(value);
+                  }
+                });
+              },
+              'Bulut Servisi',
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildCategorySection(
+            theme,
+            'DevOps Araçları',
+            _buildMultiSelector(
+              theme,
+              _devOpsTools,
+              _selectedDevOpsTools,
+              (value) {
+                setState(() {
+                  if (_selectedDevOpsTools.contains(value)) {
+                    _selectedDevOpsTools.remove(value);
+                  } else {
+                    _selectedDevOpsTools.add(value);
+                  }
+                });
+              },
+              'DevOps Aracı',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExperienceTab(ThemeData theme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCategorySection(
+            theme,
+            'Deneyim Seviyesi',
+            _buildStatusSelector(
+              theme,
+              _experienceLevels,
+              _selectedExperienceLevel,
+              (value) => setState(() => _selectedExperienceLevel = value),
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildCategorySection(
+            theme,
+            'Tercih Ettiğiniz Rol',
+            _buildStatusSelector(
+              theme,
+              _preferredRoles,
+              _selectedPreferredRole,
+              (value) => setState(() => _selectedPreferredRole = value),
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildCategorySection(
+            theme,
+            'Yumuşak Beceriler',
+            _buildMultiSelector(
+              theme,
+              _softSkills,
+              _selectedSoftSkills,
+              (value) {
+                setState(() {
+                  if (_selectedSoftSkills.contains(value)) {
+                    _selectedSoftSkills.remove(value);
+                  } else {
+                    _selectedSoftSkills.add(value);
+                  }
+                });
+              },
+              'Yumuşak Beceri',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWelcomeCard(ThemeData theme) {
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary,
+              theme.colorScheme.primary.withOpacity(0.8),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onPrimary.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.code,
+                    color: theme.colorScheme.onPrimary,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Teknik Becerileriniz',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: theme.colorScheme.onPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Teknik yetkinliklerinizi belirterek size özel öneriler alın',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onPrimary.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getSectionIcon(String title) {
+    switch (title) {
+      case 'Programlama Dilleri':
+        return Icons.code;
+      case 'Framework\'ler':
+        return Icons.architecture;
+      case 'Veritabanları':
+        return Icons.storage;
+      case 'Geliştirme Araçları':
+        return Icons.build;
+      case 'Bulut Servisleri':
+        return Icons.cloud;
+      case 'DevOps Araçları':
+        return Icons.settings;
+      case 'Deneyim Seviyesi':
+        return Icons.trending_up;
+      case 'Tercih Ettiğiniz Rol':
+        return Icons.work;
+      case 'Yumuşak Beceriler':
+        return Icons.people;
+      default:
+        return Icons.info_outline;
+    }
+  }
+
+  Widget _buildStatusSelector(
+    ThemeData theme,
+    List<String> options,
+    String? selectedValue,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      children: options.map((option) {
+        final isSelected = selectedValue == option;
+        return Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(bottom: 8),
+          color: isSelected
+              ? theme.colorScheme.primary.withOpacity(0.1)
+              : theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline.withOpacity(0.5),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: RadioListTile<String>(
+            title: Text(
+              option,
+              style: TextStyle(
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 15,
+              ),
+            ),
+            value: option,
+            groupValue: selectedValue,
+            onChanged: _isEditing ? onChanged : null,
+            activeColor: theme.colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildMultiSelector(
+    ThemeData theme,
+    List<String> options,
+    List<String> selectedValues,
+    Function(String) onChanged,
+    String category,
+  ) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: options.map((option) {
+        final isSelected = selectedValues.contains(option);
+        return FilterChip(
+          label: Text(
+            option,
+            style: TextStyle(
+              color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14,
+            ),
+          ),
+          selected: isSelected,
+          onSelected: _isEditing
+              ? (selected) {
+                  if (option == 'Diğer') {
+                    _showAddCustomOptionDialog(category);
+                  } else {
+                    onChanged(option);
+                  }
+                }
+              : null,
+          backgroundColor: theme.colorScheme.surface,
+          selectedColor: theme.colorScheme.primary.withOpacity(0.15),
+          checkmarkColor: theme.colorScheme.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline.withOpacity(0.5),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          elevation: isSelected ? 2 : 0,
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildActionButtons(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Row(
+        children: [
+          Expanded(
+            child: CustomButton(
+              onPressed: _saveToFirestore,
+              text: 'Kaydet',
+              isLoading: _isSaving,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: CustomButton(
+              onPressed: () {
+                setState(() => _isSaving = false);
+                _loadSavedData();
+              },
+              text: 'İptal',
+              isLoading: false,
+              backgroundColor: theme.colorScheme.error,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddCustomOptionDialog(String category) async {
+    final TextEditingController customOptionController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$category Ekle'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: customOptionController,
+            decoration: _inputDecoration(
+              context,
+              'Yeni $category',
+              Icons.add_circle_outline,
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Lütfen bir değer girin';
+              }
+              return null;
+            },
+            autofocus: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                final newOption = customOptionController.text.trim();
+                setState(() {
+                  switch (category) {
+                    case 'Programlama Dili':
+                      _selectedProgrammingLanguages.add(newOption);
+                      break;
+                    case 'Framework':
+                      _selectedFrameworks.add(newOption);
+                      break;
+                    case 'Veritabanı':
+                      _selectedDatabases.add(newOption);
+                      break;
+                    case 'Araç':
+                      _selectedTools.add(newOption);
+                      break;
+                    case 'Bulut Servisi':
+                      _selectedCloudServices.add(newOption);
+                      break;
+                    case 'DevOps Aracı':
+                      _selectedDevOpsTools.add(newOption);
+                      break;
+                    case 'Yumuşak Beceri':
+                      _selectedSoftSkills.add(newOption);
+                      break;
+                  }
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Ekle'),
+          ),
+        ],
+      ),
+    );
+  }
 
   // --- InputDecoration için Yardımcı Fonksiyon ---
   InputDecoration _inputDecoration(
@@ -1245,21 +1575,19 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
     final theme = Theme.of(context);
     return InputDecoration(
       labelText: label,
-      hintText:
-          label.contains("Açıklayın") ||
-                  label.contains("örnekleri") ||
-                  label.contains("Link") ||
-                  label.contains("Notlar")
-              ? 'Detayları buraya yazın...'
-              : null,
-      prefixIcon:
-          prefixIcon != null
-              ? Icon(
-                prefixIcon,
-                size: 20,
-                color: theme.colorScheme.onSurfaceVariant,
-              )
-              : null,
+      hintText: label.contains("Açıklayın") ||
+              label.contains("örnekleri") ||
+              label.contains("Link") ||
+              label.contains("Notlar")
+          ? 'Detayları buraya yazın...'
+          : null,
+      prefixIcon: prefixIcon != null
+          ? Icon(
+              prefixIcon,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            )
+          : null,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
@@ -1283,156 +1611,4 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> {
       ),
     );
   }
-  // ------------------------------------------
-
-  // --- Beceri Seviyesine Göre Renk ---
-  Color _getLevelColor(String level, ColorScheme colorScheme) {
-    switch (level) {
-      case 'Beginner':
-        return Colors.orange.shade300;
-      case 'Intermediate':
-        return Colors.blue.shade300;
-      case 'Advanced':
-        return Colors.green.shade400;
-      default:
-        return Colors.grey.shade400;
-    }
-  }
-  // -------------------------------------------------
-
-  // --- Proje Öğesini Oluşturan Yardımcı Widget ---
-  Widget _buildProjectItem(
-    BuildContext context,
-    int index,
-    ColorScheme colorScheme,
-  ) {
-    final project = _userProjects[index];
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    project.name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.edit_outlined,
-                        size: 20,
-                        color: colorScheme.primary,
-                      ),
-                      tooltip: 'Düzenle',
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(4),
-                      onPressed:
-                          () => _showAddEditProjectDialog(
-                            existingProject: project,
-                          ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.delete_outline,
-                        size: 20,
-                        color: colorScheme.error,
-                      ),
-                      tooltip: 'Sil',
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(4),
-                      onPressed: () {
-                        setState(() => _userProjects.removeAt(index));
-                        _showFeedback('Proje silindi.', isError: false);
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              project.description,
-              style: Theme.of(context).textTheme.bodyMedium,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (project.technologies.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6.0,
-                runSpacing: 4.0,
-                children:
-                    project.technologies
-                        .map(
-                          (tech) => Chip(
-                            label: Text(tech),
-                            labelStyle: TextStyle(
-                              fontSize: 11,
-                              color: colorScheme.onSecondaryContainer,
-                            ),
-                            backgroundColor: colorScheme.secondaryContainer
-                                .withOpacity(0.6),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1,
-                            ),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            side: BorderSide.none,
-                          ),
-                        )
-                        .toList(),
-              ),
-            ],
-            if (project.link != null && project.link!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () {
-                  /* TODO: Linki aç */
-                  print("Linke tıklandı: ${project.link}");
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.link_rounded,
-                      size: 16,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        project.link!,
-                        style: TextStyle(
-                          color: colorScheme.primary,
-                          fontSize: 13,
-                          decoration: TextDecoration.underline,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  // -------------------------------------------------
 }

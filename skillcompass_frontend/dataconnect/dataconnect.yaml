@@ -1,0 +1,12 @@
+specVersion: "v1"
+serviceId: "skillcompassfrontend"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "fdcdb"
+      cloudSql:
+        instanceId: "skillcompassfrontend-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

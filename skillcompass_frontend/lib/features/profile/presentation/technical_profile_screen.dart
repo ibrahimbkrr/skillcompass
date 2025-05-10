@@ -1139,18 +1139,15 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
           ),
         ),
         const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Card(
-            elevation: 2,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: content,
-            ),
+        Card(
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: content,
           ),
         ),
       ],
@@ -1422,46 +1419,31 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
     List<String> options,
     List<String> selectedValues,
     Function(String) onChanged,
-    String category,
+    String label,
   ) {
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: 8.0,
+      runSpacing: 8.0,
       children: options.map((option) {
         final isSelected = selectedValues.contains(option);
         return FilterChip(
-          label: Text(
-            option,
-            style: TextStyle(
-              color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 14,
-            ),
-          ),
+          label: Text(option),
           selected: isSelected,
-          onSelected: _isEditing
-              ? (selected) {
-                  if (option == 'Diğer') {
-                    _showAddCustomOptionDialog(category);
-                  } else {
-                    onChanged(option);
-                  }
-                }
-              : null,
-          backgroundColor: theme.colorScheme.surface,
-          selectedColor: theme.colorScheme.primary.withOpacity(0.15),
+          onSelected: _isEditing ? (selected) => onChanged(option) : null,
+          selectedColor: theme.colorScheme.primaryContainer.withOpacity(0.7),
           checkmarkColor: theme.colorScheme.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-              color: isSelected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outline.withOpacity(0.5),
-              width: isSelected ? 2 : 1,
-            ),
+          labelStyle: TextStyle(
+            fontSize: 13,
+            color: isSelected ? theme.colorScheme.primary : null,
           ),
-          elevation: isSelected ? 2 : 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          side: BorderSide(
+            color: isSelected ? theme.colorScheme.primary : Colors.grey[300]!,
+            width: 0.8,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
         );
       }).toList(),
     );

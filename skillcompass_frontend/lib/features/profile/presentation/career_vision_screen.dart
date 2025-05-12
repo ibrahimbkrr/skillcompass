@@ -25,90 +25,152 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
   bool _isLoadingPage = true;
   bool _isSaving = false;
   String _loadingError = '';
+  int _currentStep = 0;
 
   // Form Alanları
-  String? _selectedOneYearTheme;
-  final List<String> _oneYearThemeOptions = [
-    'İşe/Staja Başlamak',
-    'Teknik Uzmanlık Kazanmak',
-    'Mevcut Rolde Gelişmek',
-    'Proje Tamamlamak/Yayınlamak',
-    'Freelance/Ek Gelir',
-    'Sertifika/Eğitim Tamamlamak',
-  ];
-  final TextEditingController _oneYearDetailsController =
-      TextEditingController();
+  String? _selectedOneYearGoal;
+  String? _oneYearGoalDetail;
+  String? _selectedFiveYearVision;
+  String? _fiveYearVisionDetail;
+  List<String> _selectedMotivationSources = [];
+  String? _profileTagline;
 
-  String? _selectedFiveYearTheme;
-  final List<String> _fiveYearThemeOptions = [
-    'Teknik Liderlik/Mimarlık',
-    'Yöneticilik',
-    'Girişimcilik/Kendi İşim',
-    'Global Kariyer/Yurt Dışı',
-    'Alanında Derin Uzmanlık',
-    'Akademik Kariyer',
-    'Finansal Hedefler',
-    'Toplumsal Etki/Katkı',
+  // --- Options ---
+  final List<String> _oneYearGoalOptions = [
+    'Yeni bir teknoloji öğrenmek',
+    'İlk işimi/stajımı bulmak',
+    'Bir projede liderlik yapmak',
+    'Açık kaynak katkısı yapmak',
+    'Kariyerimde terfi almak',
+    'Kendi girişimimi başlatmak',
+    'Diğer',
   ];
-  final TextEditingController _fiveYearDetailsController =
-      TextEditingController();
-
-  final List<String> _selectedTargetRoles = [];
-  final List<String> _allTargetRolesOptions = [
-    'Frontend Developer',
-    'Backend Developer',
-    'Full-Stack Developer',
-    'Mobile Developer (Android)',
-    'Mobile Developer (iOS)',
-    'Mobile Developer (Flutter/RN)',
-    'Game Developer',
-    'AI/Machine Learning Engineer',
-    'Data Scientist / Analyst',
-    'Cyber Security Specialist',
-    'DevOps Engineer',
-    'Cloud Engineer (AWS/Azure/GCP)',
-    'Database Administrator (DBA)',
-    'UI/UX Designer',
-    'Product Manager',
-    'Project Manager / Scrum Master',
-    'Akademisyen / Araştırmacı',
-    'Teknik Lider / Yönetici',
-    'Diğer Teknik Rol',
+  final List<String> _fiveYearVisionOptions = [
+    'Alanında uzmanlaşmak',
+    'Uluslararası bir şirkette çalışmak',
+    'Kendi şirketini kurmak',
+    'Teknik lider olmak',
+    'Global projelerde yer almak',
+    'Akademik kariyer yapmak',
+    'Diğer',
+  ];
+  final List<String> _motivationSourcesOptions = [
+    'Öğrenme & Gelişim',
+    'Problem Çözme',
+    'Maddi Güvence',
+    'Kariyerde Yükselme',
+    'Etki Yaratma',
+    'Esneklik',
+    'Yaratıcılık',
+    'Teknolojiye İlgi',
+    'Diğer',
   ];
 
-  final List<String> _selectedTargetSectors = [];
-  final List<String> _allTargetSectorsOptions = [
-    'Finans / Bankacılık (Fintech)',
-    'Sağlık Teknolojileri (Healthtech)',
-    'Eğitim Teknolojileri (Edtech)',
-    'Oyun Sektörü',
-    'Savunma Sanayi',
-    'E-ticaret / Perakende',
-    'Telekomünikasyon',
-    'Medya / Eğlence',
-    'Kamu Sektörü',
-    'Danışmanlık',
-    'Otomotiv',
-    'Enerji',
-    'Lojistik / Ulaşım',
-    'Turizm / Konaklama',
-    'Startup Ekosistemi (Genel)',
-    'Sektör Bağımsız / Farketmez',
+  late final List<_StepperStep> _stepperSteps = [
+    _StepperStep(
+      title: '1 Yıllık Hedef',
+      description: 'Önümüzdeki 1 yıl içinde ulaşmak istediğin ana kariyer hedefini seç. Bu hedef, kısa vadeli planlarını ve odak noktalarını belirlemede yardımcı olur.',
+      info: 'Kısa vadede ulaşmak istediğin ana hedefini seçerek, odaklanacağın alanı netleştir. Bu, gelişim planlarını daha verimli yapmanı sağlar.',
+      contentBuilder: (context) => _buildStatusSelector(
+        context,
+        _oneYearGoalOptions,
+        _selectedOneYearGoal,
+        (value) => setState(() => _selectedOneYearGoal = value),
+      ),
+      isRequired: true,
+      validator: () => _selectedOneYearGoal != null,
+    ),
+    _StepperStep(
+      title: '1 Yıllık Hedef Detayı',
+      description: 'Bu hedefle ilgili spesifik detayları paylaşmak ister misin? (İsteğe bağlı)',
+      info: 'Örneğin: "Yeni bir teknoloji öğrenmek istiyorum: Flutter.", "Açık kaynak projelere katkı sağlamak istiyorum." gibi.',
+      contentBuilder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: TextFormField(
+          initialValue: _oneYearGoalDetail,
+          decoration: _inputDecoration(context, 'Bu hedefle ilgili detaylar (isteğe bağlı)', Icons.edit_note_rounded),
+          maxLines: 2,
+          onChanged: (value) => setState(() => _oneYearGoalDetail = value),
+        ),
+      ),
+      isRequired: false,
+      validator: () => true,
+    ),
+    _StepperStep(
+      title: '5 Yıllık Vizyon',
+      description: 'Uzun vadede, 5 yıl sonra kariyerinde nerede olmak istediğini seç. Bu vizyon, büyük resme odaklanmanı ve motivasyonunu artırmanı sağlar.',
+      info: 'Büyük resmi düşün! 5 yıl sonra kendini nerede görmek istiyorsun? Uzun vadeli vizyonun, motivasyonunu ve yol haritanı şekillendirir.',
+      contentBuilder: (context) => _buildStatusSelector(
+        context,
+        _fiveYearVisionOptions,
+        _selectedFiveYearVision,
+        (value) => setState(() => _selectedFiveYearVision = value),
+      ),
+      isRequired: true,
+      validator: () => _selectedFiveYearVision != null,
+    ),
+    _StepperStep(
+      title: '5 Yıllık Vizyon Detayı',
+      description: 'Bu vizyonla ilgili detayları paylaşmak ister misin? (İsteğe bağlı)',
+      info: 'Örneğin: "Global projelerde yer almak istiyorum.", "Teknik lider olmak istiyorum." gibi.',
+      contentBuilder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: TextFormField(
+          initialValue: _fiveYearVisionDetail,
+          decoration: _inputDecoration(context, 'Bu vizyonla ilgili detaylar (isteğe bağlı)', Icons.edit_note_rounded),
+          maxLines: 3,
+          onChanged: (value) => setState(() => _fiveYearVisionDetail = value),
+        ),
+      ),
+      isRequired: false,
+      validator: () => true,
+    ),
+    _StepperStep(
+      title: 'Motivasyon Kaynakları',
+      description: 'Kariyerinde seni en çok motive eden kaynakları seç. (Birden fazla seçebilirsin)',
+      info: 'Seni motive eden kaynakları seçerek, SkillCompass\'ın sana daha iyi destek olmasını sağlayabilir.',
+      contentBuilder: (context) => _buildMultiSelector(
+        context,
+        _motivationSourcesOptions,
+        _selectedMotivationSources,
+        (value) {
+          setState(() {
+            if (_selectedMotivationSources.contains(value)) {
+              _selectedMotivationSources.remove(value);
+            } else {
+              _selectedMotivationSources.add(value);
+            }
+          });
+        },
+      ),
+      isRequired: true,
+      validator: () => _selectedMotivationSources.isNotEmpty,
+    ),
+    _StepperStep(
+      title: 'Kısa Profil Sloganı',
+      description: 'Kendini 1 cümleyle tanımlar mısın? (İsteğe bağlı)',
+      info: 'Örneğin: "Yenilikçi ve çözüm odaklı bir yazılım geliştiriciyim." gibi LinkedIn tarzı kısa bir cümle yazabilirsin.',
+      contentBuilder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: TextFormField(
+          initialValue: _profileTagline,
+          decoration: _inputDecoration(context, 'Profil Sloganın (isteğe bağlı)', Icons.short_text_rounded),
+          maxLines: 2,
+          onChanged: (value) => setState(() => _profileTagline = value),
+        ),
+      ),
+      isRequired: false,
+      validator: () => true,
+    ),
+    _StepperStep(
+      title: 'Özet ve Onay',
+      description: 'Tüm verdiğin bilgileri gözden geçir ve onayla.',
+      info: 'Bilgilerini kontrol et. Kaydettikten sonra profilinde güncellenmiş olarak göreceksin.',
+      contentBuilder: (context) => _buildSummaryCard(context),
+      isRequired: true,
+      validator: () => true,
+    ),
   ];
-
-  final Map<String, bool> _motivationSourcesOptions = {
-    'Öğrenme & Gelişim Tutkusu': false,
-    'Problem Çözme Yeteneği': false,
-    'Maddi Güvenlik & Kazanç': false,
-    'Kariyerde Yükselme & Statü': false,
-    'Etki Yaratma & Değer Katma': false,
-    'Esneklik & Bağımsızlık': false,
-    'Yaratıcılık & Üretkenlik': false,
-    'Teknolojiye Olan İlgi': false,
-    'Diğer (Açıklayınız)': false,
-  };
-  final TextEditingController _otherMotivationController =
-      TextEditingController();
 
   @override
   void initState() {
@@ -141,12 +203,19 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
               .collection('users')
               .doc(_currentUser!.uid)
               .collection('profile_data')
-              .doc('career_vision_v5') // Versiyon 5
+              .doc('career_vision_v5')
               .get();
       if (snapshot.exists && snapshot.data() != null) {
         final data = snapshot.data()!;
         if (mounted) {
-          _updateStateWithLoadedData(data);
+          setState(() {
+            _selectedOneYearGoal = data['one_year_goal'];
+            _oneYearGoalDetail = data['one_year_goal_detail'];
+            _selectedFiveYearVision = data['five_year_vision'];
+            _fiveYearVisionDetail = data['five_year_vision_detail'];
+            _selectedMotivationSources = List<String>.from(data['motivation_sources'] ?? []);
+            _profileTagline = data['profile_tagline'];
+          });
         }
       }
     } catch (e) {
@@ -161,131 +230,361 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
     }
   }
 
-  void _updateStateWithLoadedData(Map<String, dynamic> data) {
-    setState(() {
-      _selectedOneYearTheme = data['oneYearGoalTheme'];
-      if (!_oneYearThemeOptions.contains(_selectedOneYearTheme))
-        _selectedOneYearTheme = null;
-      _oneYearDetailsController.text = data['oneYearGoalDetails'] ?? '';
-      _selectedFiveYearTheme = data['fiveYearVisionTheme'];
-      if (!_fiveYearThemeOptions.contains(_selectedFiveYearTheme))
-        _selectedFiveYearTheme = null;
-      _fiveYearDetailsController.text = data['fiveYearVisionDetails'] ?? '';
-      _selectedTargetRoles.clear();
-      _selectedTargetRoles.addAll(
-        List<String>.from(data['targetTechnicalRoles'] ?? []),
-      );
-      _selectedTargetSectors.clear();
-      _selectedTargetSectors.addAll(
-        List<String>.from(data['targetSectors'] ?? []),
-      );
-      List<String> motivations = List<String>.from(
-        data['motivationSources'] ?? [],
-      );
-      _motivationSourcesOptions.forEach((key, value) {
-        _motivationSourcesOptions[key] = motivations.contains(key);
-      });
-      _otherMotivationController.text = data['otherMotivation'] ?? '';
-    });
-  }
-
   @override
   void dispose() {
-    _oneYearDetailsController.dispose();
-    _fiveYearDetailsController.dispose();
-    _otherMotivationController.dispose();
     super.dispose();
   }
 
   Future<void> _saveToFirestore() async {
-    User? currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      _showFeedback('Oturum bulunamadı.', isError: true);
-      return;
-    }
-
-    List<String> selectedMotivations =
-        _motivationSourcesOptions.entries
-            .where((e) => e.value)
-            .map((e) => e.key)
-            .toList();
-
-    Map<String, dynamic> visionData = {
-      'oneYearGoalTheme': _selectedOneYearTheme,
-      'oneYearGoalDetails': _oneYearDetailsController.text.trim(),
-      'fiveYearVisionTheme': _selectedFiveYearTheme,
-      'fiveYearVisionDetails': _fiveYearDetailsController.text.trim(),
-      'targetTechnicalRoles': _selectedTargetRoles,
-      'targetSectors': _selectedTargetSectors,
-      'motivationSources': selectedMotivations,
-      'otherMotivation':
-          _motivationSourcesOptions['Diğer (Açıklayınız)'] == true
-              ? _otherMotivationController.text.trim()
-              : null,
-      'lastUpdated': Timestamp.now(),
-    };
-
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
     try {
+      if (_currentUser == null) return;
+      final data = {
+        'one_year_goal': _selectedOneYearGoal,
+        'one_year_goal_detail': _oneYearGoalDetail,
+        'five_year_vision': _selectedFiveYearVision,
+        'five_year_vision_detail': _fiveYearVisionDetail,
+        'motivation_sources': _selectedMotivationSources,
+        'profile_tagline': _profileTagline,
+        'updated_at': FieldValue.serverTimestamp(),
+      };
       await _firestore
           .collection('users')
-          .doc(currentUser.uid)
+          .doc(_currentUser!.uid)
           .collection('profile_data')
-          .doc('career_vision_v5') // Versiyon 5
-          .set(visionData, SetOptions(merge: true));
+          .doc('career_vision_v5')
+          .set(data, SetOptions(merge: true));
       if (mounted) {
-        _showFeedback('Kariyer vizyonu bilgileri kaydedildi!', isError: false);
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+        _showFeedback('Kariyer vizyonu başarıyla kaydedildi!', isError: false);
       }
     } catch (e) {
-      print("Firestore Kayıt Hatası (Vizyon v5): $e");
       _showFeedback('Bilgiler kaydedilirken bir hata oluştu.', isError: true);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  Future<void> _submitForm() async {
-    if (_selectedOneYearTheme == null) {
-      _showFeedback('Lütfen 1. soruyu yanıtlayın.', isError: true);
-      return;
-    }
-    if (_selectedFiveYearTheme == null) {
-      _showFeedback('Lütfen 2. soruyu yanıtlayın.', isError: true);
-      return;
-    }
-    if (_selectedTargetRoles.isEmpty) {
-      _showFeedback(
-        'Lütfen 3. soruda en az bir hedef rol seçin.',
-        isError: true,
-      );
-      return;
-    }
-    if (!_motivationSourcesOptions.containsValue(true)) {
-      _showFeedback(
-        'Lütfen 5. soruda en az bir motivasyon kaynağı seçin.',
-        isError: true,
-      );
-      return;
-    }
-
-    if (!_formKey.currentState!.validate()) {
-      _showFeedback(
-        'Lütfen formdaki işaretli alanları düzeltin.',
-        isError: true,
-      );
-      return;
-    }
-    await _saveToFirestore();
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Kariyer Vizyonu'),
+        elevation: 1,
+      ),
+      body: _isLoadingPage
+          ? const Center(child: CircularProgressIndicator())
+          : _buildStepper(theme),
+    );
   }
 
+  Widget _buildStepper(ThemeData theme) {
+    return Column(
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+          child: _buildDynamicInfoCard(theme, _currentStep, key: ValueKey(_currentStep)),
+        ),
+        LinearProgressIndicator(
+          value: (_currentStep + 1) / _stepperSteps.length,
+          minHeight: 6,
+          backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+          valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+        ),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 400),
+            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
+            child: StepperBody(
+              key: ValueKey(_currentStep),
+              step: _stepperSteps[_currentStep],
+              stepIndex: _currentStep,
+              totalSteps: _stepperSteps.length,
+              isSaving: _isSaving,
+              onBack: _currentStep > 0 ? () => setState(() => _currentStep--) : null,
+              onNext: _currentStep < _stepperSteps.length - 1
+                  ? () {
+                      if (_stepperSteps[_currentStep].validator()) {
+                        setState(() => _currentStep++);
+                      } else {
+                        _showFeedback('Lütfen gerekli alanları doldurun.', isError: true);
+                      }
+                    }
+                  : null,
+              onSave: _currentStep == _stepperSteps.length - 1 && !_isSaving
+                  ? _saveToFirestore
+                  : null,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusSelector(
+    BuildContext context,
+    List<String> options,
+    String? selectedValue,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ...options.map((option) {
+          final isSelected = selectedValue == option;
+          return Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 8),
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                : Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: RadioListTile<String>(
+              title: Text(
+                option,
+                style: TextStyle(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 15,
+                ),
+              ),
+              value: option,
+              groupValue: selectedValue,
+              onChanged: !_isSaving ? onChanged : null,
+              activeColor: Theme.of(context).colorScheme.primary,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+          );
+        }).toList(),
+        if (selectedValue == null && _isSaving)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              'Lütfen bir seçim yapın',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMultiSelector(
+    BuildContext context,
+    List<String> options,
+    List<String> selectedValues,
+    Function(String) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((option) {
+            final isSelected = selectedValues.contains(option);
+            return FilterChip(
+              label: Text(
+                option,
+                style: TextStyle(
+                  color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              selected: isSelected,
+              onSelected: (selected) {
+                if (_isSaving) return;
+                onChanged(option);
+              },
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+              checkmarkColor: Theme.of(context).colorScheme.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              elevation: isSelected ? 2 : 0,
+            );
+          }).toList(),
+        ),
+        if (selectedValues.isEmpty && _isSaving)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              'Lütfen en az bir seçim yapın',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Özet', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            _buildSummaryRow('1 Yıllık Hedef', _selectedOneYearGoal),
+            _buildSummaryRow('1 Yıllık Hedef Detayı', _oneYearGoalDetail),
+            _buildSummaryRow('5 Yıllık Vizyon', _selectedFiveYearVision),
+            _buildSummaryRow('5 Yıllık Vizyon Detayı', _fiveYearVisionDetail),
+            _buildSummaryRow('Motivasyon Kaynakları', _selectedMotivationSources.join(', ')),
+            _buildSummaryRow('Profil Sloganı', _profileTagline),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text((value == null || value.isEmpty) ? '-' : value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Dynamic Info Card ---
+  Widget _buildDynamicInfoCard(ThemeData theme, int step, {Key? key}) {
+    final List<_StepCardInfo> cardInfos = [
+      _StepCardInfo(
+        icon: Icons.looks_one_rounded,
+        title: '1 Yıllık Hedef',
+        description: 'Önümüzdeki 1 yıl içinde ulaşmak istediğin ana kariyer hedefini seç.',
+        color: theme.colorScheme.primary,
+      ),
+      _StepCardInfo(
+        icon: Icons.edit_note_rounded,
+        title: '1 Yıllık Hedef Detayı',
+        description: 'Bu hedefle ilgili spesifik detayları paylaşmak ister misin?',
+        color: theme.colorScheme.secondary,
+      ),
+      _StepCardInfo(
+        icon: Icons.looks_5_rounded,
+        title: '5 Yıllık Vizyon',
+        description: '5 yıl sonra kariyerinde nerede olmak istediğini seç.',
+        color: theme.colorScheme.tertiary,
+      ),
+      _StepCardInfo(
+        icon: Icons.edit_note_rounded,
+        title: '5 Yıllık Vizyon Detayı',
+        description: 'Bu vizyonla ilgili detayları paylaşmak ister misin?',
+        color: theme.colorScheme.secondary,
+      ),
+      _StepCardInfo(
+        icon: Icons.favorite_rounded,
+        title: 'Motivasyon Kaynakları',
+        description: 'Kariyerinde seni en çok motive eden kaynakları seç.',
+        color: theme.colorScheme.primary,
+      ),
+      _StepCardInfo(
+        icon: Icons.short_text_rounded,
+        title: 'Kısa Profil Sloganı',
+        description: 'Kendini 1 cümleyle tanımlar mısın?',
+        color: theme.colorScheme.secondary,
+      ),
+      _StepCardInfo(
+        icon: Icons.check_circle_outline,
+        title: 'Özet ve Onay',
+        description: 'Tüm verdiğin bilgileri gözden geçir ve onayla.',
+        color: theme.colorScheme.primary,
+      ),
+    ];
+    final info = cardInfos[step.clamp(0, cardInfos.length - 1)];
+    return Card(
+      key: key,
+      elevation: 4,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: info.color.withOpacity(0.08),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: info.color.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                info.icon,
+                color: info.color,
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    info.title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: info.color,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    info.description,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.9),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- Feedback Helper ---
   void _showFeedback(String message, {required bool isError}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).removeCurrentSnackBar();
@@ -301,514 +600,17 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
     );
   }
 
-  Future<void> _showMultiSelectDialog({
-    required String title,
-    required List<String> allOptions,
-    required List<String> currentlySelected,
-    required Function(List<String>) onConfirm,
-  }) async {
-    List<String> tempSelected = List.from(currentlySelected);
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(title),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: allOptions.length,
-                  itemBuilder: (context, index) {
-                    final option = allOptions[index];
-                    final bool isSelected = tempSelected.contains(option);
-                    return CheckboxListTile(
-                      title: Text(option),
-                      value: isSelected,
-                      onChanged: (bool? selected) {
-                        setDialogState(() {
-                          if (selected ?? false) {
-                            tempSelected.add(option);
-                          } else {
-                            tempSelected.remove(option);
-                          }
-                        });
-                      },
-                      controlAffinity: ListTileControlAffinity.leading,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  child: const Text('İptal'),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                TextButton(
-                  child: const Text('Tamam'),
-                  onPressed: () {
-                    onConfirm(tempSelected);
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final userData = userProvider.userData;
-    final isLoading = userProvider.isLoading;
-    final error = userProvider.error;
-    if (isLoading) {
-      return const Scaffold(
-        body: LoadingIndicator(),
-      );
-    }
-    if (error != null) {
-      return Scaffold(
-        body: ErrorMessage(message: 'Hata: $error'),
-      );
-    }
-
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil: Kariyer Vizyonu'),
-        elevation: 1,
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton.icon(
-          icon: _isSaving ? Container() : const Icon(Icons.save_rounded),
-          label:
-              _isSaving
-                  ? const SizedBox(
-                    height: 24.0,
-                    width: 24.0,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.0,
-                      color: Colors.white,
-                    ),
-                  )
-                  : const Text('Kaydet ve Geri Dön'),
-          onPressed: _isSaving ? null : _submitForm,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colorScheme.primary,
-            foregroundColor: colorScheme.onPrimary,
-            padding: const EdgeInsets.symmetric(vertical: 15.0),
-            textStyle: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(
-          left: 16.0,
-          right: 16.0,
-          top: 20.0,
-          bottom: 100.0,
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              // --- Soru 1 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.looks_one_rounded,
-                questionText: 'Yaklaşık 1 Yıllık Ana Hedefin',
-                child: Column(
-                  children: [
-                    ..._oneYearThemeOptions
-                        .map(
-                          (themeOption) => RadioListTile<String>(
-                            title: Text(
-                              themeOption,
-                              style: theme.textTheme.bodyLarge,
-                            ),
-                            value: themeOption,
-                            groupValue: _selectedOneYearTheme,
-                            onChanged: (String? value) {
-                              setState(() {
-                                _selectedOneYearTheme = value;
-                              });
-                            },
-                            dense: false,
-                            contentPadding: EdgeInsets.zero,
-                            activeColor: colorScheme.primary,
-                          ),
-                        )
-                        .toList(),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _oneYearDetailsController,
-                      decoration: customInputDecoration(
-                        context,
-                        'Bu hedefle ilgili spesifik detaylar (isteğe bağlı)',
-                        Icons.edit_note_rounded,
-                      ),
-                      maxLines: 2,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-
-              // --- Soru 2 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.looks_5_rounded,
-                questionText: 'Yaklaşık 5 Yıllık Ana Vizyonun',
-                child: Column(
-                  children: [
-                    ..._fiveYearThemeOptions
-                        .map(
-                          (themeOption) => RadioListTile<String>(
-                            title: Text(
-                              themeOption,
-                              style: theme.textTheme.bodyLarge,
-                            ),
-                            value: themeOption,
-                            groupValue: _selectedFiveYearTheme,
-                            onChanged: (String? value) {
-                              setState(() {
-                                _selectedFiveYearTheme = value;
-                              });
-                            },
-                            dense: false,
-                            contentPadding: EdgeInsets.zero,
-                            activeColor: colorScheme.primary,
-                          ),
-                        )
-                        .toList(),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _fiveYearDetailsController,
-                      decoration: customInputDecoration(
-                        context,
-                        'Bu vizyonla ilgili detaylar (isteğe bağlı)',
-                        Icons.edit_note_rounded,
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-
-              // --- Soru 3 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.terminal_rounded,
-                questionText: 'Hedeflediğin Teknik Rol(ler)',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _selectedTargetRoles.isEmpty
-                        ? Text(
-                          'Henüz rol seçilmedi.',
-                          style: TextStyle(color: Colors.grey[600]),
-                        )
-                        : Wrap(
-                          spacing: 8.0,
-                          runSpacing: 4.0,
-                          children:
-                              _selectedTargetRoles
-                                  .map(
-                                    (role) => Chip(
-                                      label: Text(role),
-                                      onDeleted:
-                                          () => setState(
-                                            () => _selectedTargetRoles.remove(
-                                              role,
-                                            ),
-                                          ),
-                                      deleteIconColor: colorScheme.error
-                                          .withOpacity(0.7),
-                                      backgroundColor: colorScheme
-                                          .secondaryContainer
-                                          .withOpacity(0.5),
-                                      labelStyle: TextStyle(
-                                        fontSize: 13,
-                                        color: colorScheme.onSecondaryContainer,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8.0,
-                                        vertical: 2.0,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                        ),
-                    const SizedBox(height: 10),
-                    TextButton.icon(
-                      icon: const Icon(Icons.checklist_rtl_outlined, size: 18),
-                      label: const Text('Rolleri Seç/Düzenle'),
-                      onPressed:
-                          () => _showMultiSelectDialog(
-                            title: 'Hedef Rolleri Seçin',
-                            allOptions: _allTargetRolesOptions,
-                            currentlySelected: _selectedTargetRoles,
-                            onConfirm: (selectedList) {
-                              setState(() {
-                                _selectedTargetRoles.clear();
-                                _selectedTargetRoles.addAll(selectedList);
-                              });
-                            },
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-
-              // --- Soru 4 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.business_center_rounded,
-                questionText: 'Hedeflediğin Sektör(ler)',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _selectedTargetSectors.isEmpty
-                        ? Text(
-                          'Henüz sektör seçilmedi.',
-                          style: TextStyle(color: Colors.grey[600]),
-                        )
-                        : Wrap(
-                          spacing: 8.0,
-                          runSpacing: 4.0,
-                          children:
-                              _selectedTargetSectors
-                                  .map(
-                                    (sector) => Chip(
-                                      label: Text(sector),
-                                      onDeleted:
-                                          () => setState(
-                                            () => _selectedTargetSectors.remove(
-                                              sector,
-                                            ),
-                                          ),
-                                      deleteIconColor: colorScheme.error
-                                          .withOpacity(0.7),
-                                      backgroundColor: colorScheme
-                                          .secondaryContainer
-                                          .withOpacity(0.5),
-                                      labelStyle: TextStyle(
-                                        fontSize: 13,
-                                        color: colorScheme.onSecondaryContainer,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8.0,
-                                        vertical: 2.0,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                        ),
-                    const SizedBox(height: 10),
-                    TextButton.icon(
-                      icon: const Icon(Icons.checklist_rtl_outlined, size: 18),
-                      label: const Text('Sektörleri Seç/Düzenle'),
-                      onPressed:
-                          () => _showMultiSelectDialog(
-                            title: 'Hedef Sektörleri Seçin',
-                            allOptions: _allTargetSectorsOptions,
-                            currentlySelected: _selectedTargetSectors,
-                            onConfirm: (selectedList) {
-                              setState(() {
-                                _selectedTargetSectors.clear();
-                                _selectedTargetSectors.addAll(selectedList);
-                              });
-                            },
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-
-              // --- Soru 5 ---
-              _buildQuestionCard(
-                context: context,
-                icon: Icons.favorite_rounded,
-                questionText: 'Ana Motivasyon Kaynakların',
-                child: Column(
-                  children: [
-                    Wrap(
-                      spacing: 8.0,
-                      runSpacing: 4.0,
-                      children:
-                          _motivationSourcesOptions.keys
-                              .where((k) => k != 'Diğer (Açıklayınız)')
-                              .map((motivation) {
-                                bool isSelected =
-                                    _motivationSourcesOptions[motivation] ??
-                                    false;
-                                return FilterChip(
-                                  label: Text(motivation),
-                                  selected: isSelected,
-                                  onSelected: (bool selected) {
-                                    setState(() {
-                                      _motivationSourcesOptions[motivation] =
-                                          selected;
-                                    });
-                                  },
-                                  selectedColor: colorScheme.primaryContainer
-                                      .withOpacity(0.7),
-                                  checkmarkColor: colorScheme.primary,
-                                  labelStyle: TextStyle(
-                                    fontSize: 13,
-                                    color:
-                                        isSelected ? colorScheme.primary : null,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  side: BorderSide(
-                                    color:
-                                        isSelected
-                                            ? colorScheme.primary
-                                            : Colors.grey[300]!,
-                                    width: 0.8,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                );
-                              })
-                              .toList(),
-                    ),
-                    CheckboxListTile(
-                      title: const Text(
-                        'Diğer (Açıklayınız)',
-                        style: TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                      value: _motivationSourcesOptions['Diğer (Açıklayınız)'],
-                      onChanged: (bool? newValue) {
-                        setState(() {
-                          _motivationSourcesOptions['Diğer (Açıklayınız)'] =
-                              newValue!;
-                        });
-                      },
-                      controlAffinity: ListTileControlAffinity.leading,
-                      dense: false,
-                      contentPadding: EdgeInsets.zero,
-                      activeColor: colorScheme.primary,
-                    ),
-                    if (_motivationSourcesOptions['Diğer (Açıklayınız)'] ==
-                        true)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: TextFormField(
-                          controller: _otherMotivationController,
-                          decoration: _inputDecoration(
-                            context,
-                            'Diğer Motivasyon Kaynağınızı Açıklayın',
-                            Icons.edit_note_rounded,
-                          ),
-                          maxLines: 3,
-                          validator: (value) {
-                            if (_motivationSourcesOptions['Diğer (Açıklayınız)'] ==
-                                    true &&
-                                (value == null || value.trim().isEmpty)) {
-                              return 'Lütfen diğer motivasyonunuzu açıklayın.';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20.0),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- Düzeltilmiş Yardımcı Kart Widget'ı ---
-  Widget _buildQuestionCard({
-    required BuildContext context,
-    required IconData icon,
-    required String questionText,
-    required Widget child,
-  }) {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: theme.colorScheme.primary, size: 26),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    questionText,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 19,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16.0),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-  // ------------------------------------------
-
-  // --- Düzeltilmiş InputDecoration için Yardımcı Fonksiyon ---
-  InputDecoration _inputDecoration(
-    BuildContext context,
-    String label,
-    IconData? prefixIcon,
-  ) {
+  // --- Input Decoration Helper ---
+  InputDecoration _inputDecoration(BuildContext context, String label, IconData? prefixIcon) {
     final theme = Theme.of(context);
     return InputDecoration(
       labelText: label,
-      hintText:
-          label.contains("Açıklayın") || label.contains("detaylar")
-              ? 'Detayları buraya yazın...'
-              : null,
-      prefixIcon:
-          prefixIcon != null
-              ? Icon(
-                prefixIcon,
-                size: 20,
-                color: theme.colorScheme.onSurfaceVariant,
-              )
-              : null,
+      hintText: label.contains("Açıklayın") || label.contains("detaylar")
+          ? 'Detayları buraya yazın...'
+          : null,
+      prefixIcon: prefixIcon != null
+          ? Icon(prefixIcon, size: 20, color: theme.colorScheme.onSurfaceVariant)
+          : null,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
@@ -832,6 +634,148 @@ class _CareerVisionScreenState extends State<CareerVisionScreen> {
       ),
     );
   }
+}
 
-  // ------------------------------------------
+// --- StepperStep Model ---
+class _StepperStep {
+  final String title;
+  final String description;
+  final String info;
+  final Widget Function(BuildContext) contentBuilder;
+  final bool isRequired;
+  final bool Function() validator;
+  _StepperStep({
+    required this.title,
+    required this.description,
+    required this.info,
+    required this.contentBuilder,
+    required this.isRequired,
+    required this.validator,
+  });
+}
+
+// --- StepperBody Widget ---
+class StepperBody extends StatelessWidget {
+  final _StepperStep step;
+  final int stepIndex;
+  final int totalSteps;
+  final bool isSaving;
+  final VoidCallback? onBack;
+  final VoidCallback? onNext;
+  final VoidCallback? onSave;
+  const StepperBody({
+    super.key,
+    required this.step,
+    required this.stepIndex,
+    required this.totalSteps,
+    required this.isSaving,
+    this.onBack,
+    this.onNext,
+    this.onSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isSummaryStep = step.title == 'Özet ve Onay';
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: theme.colorScheme.primary,
+                child: Text('${stepIndex + 1}', style: TextStyle(color: theme.colorScheme.onPrimary)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  step.title,
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.info_outline_rounded),
+                tooltip: 'Açıklama',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(step.title),
+                      content: Text(step.info),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Kapat'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            step.description,
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7)),
+          ),
+          const SizedBox(height: 20),
+          step.contentBuilder(context),
+          const SizedBox(height: 32),
+          if (!isSummaryStep)
+            Row(
+              children: [
+                if (onBack != null)
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                    label: const Text('Geri'),
+                    onPressed: onBack,
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(100, 48)),
+                  ),
+                if (onBack != null) const SizedBox(width: 12),
+                if (onNext != null)
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                    label: const Text('İleri'),
+                    onPressed: onNext,
+                    style: ElevatedButton.styleFrom(minimumSize: const Size(120, 48)),
+                  ),
+              ],
+            ),
+          if (isSummaryStep)
+            _buildSummaryStepButton(theme),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryStepButton(ThemeData theme) {
+    return isSaving
+        ? const Center(child: CircularProgressIndicator())
+        : ElevatedButton.icon(
+            icon: const Icon(Icons.check_circle_outline),
+            label: const Text('Onayla ve Kaydet'),
+            onPressed: onSave,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              textStyle: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+  }
+}
+
+// --- Step Card Info Model ---
+class _StepCardInfo {
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color color;
+  _StepCardInfo({required this.icon, required this.title, required this.description, required this.color});
 }

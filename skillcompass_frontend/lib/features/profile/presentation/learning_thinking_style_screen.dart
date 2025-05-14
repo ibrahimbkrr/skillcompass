@@ -1,742 +1,960 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart';
-import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
-import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
-import 'package:skillcompass_frontend/shared/widgets/error_message.dart';
-import 'package:skillcompass_frontend/shared/widgets/input_decoration_helper.dart';
-import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
-
-// --- StepperStep Model ---
-class _StepperStep {
-  final String title;
-  final String description;
-  final String info;
-  final Widget Function(BuildContext) contentBuilder;
-  final bool isRequired;
-  final bool Function() validator;
-  _StepperStep({
-    required this.title,
-    required this.description,
-    required this.info,
-    required this.contentBuilder,
-    required this.isRequired,
-    required this.validator,
-  });
-}
-
-// --- StepperBody Widget ---
-class StepperBody extends StatelessWidget {
-  final _StepperStep step;
-  final int stepIndex;
-  final int totalSteps;
-  final bool isSaving;
-  final VoidCallback? onBack;
-  final VoidCallback? onNext;
-  final VoidCallback? onSave;
-  const StepperBody({
-    super.key,
-    required this.step,
-    required this.stepIndex,
-    required this.totalSteps,
-    required this.isSaving,
-    this.onBack,
-    this.onNext,
-    this.onSave,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isSummaryStep = step.title == 'Özet ve Onay';
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: theme.colorScheme.primary,
-                child: Text('${stepIndex + 1}', style: TextStyle(color: theme.colorScheme.onPrimary)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  step.title,
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.info_outline_rounded),
-                tooltip: 'Açıklama',
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: Text(step.title),
-                      content: Text(step.info),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Kapat'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            step.description,
-            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7)),
-          ),
-          const SizedBox(height: 20),
-          step.contentBuilder(context),
-          const SizedBox(height: 32),
-          if (!isSummaryStep)
-            Row(
-              children: [
-                if (onBack != null)
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                    label: const Text('Geri'),
-                    onPressed: onBack,
-                    style: OutlinedButton.styleFrom(minimumSize: const Size(100, 48)),
-                  ),
-                if (onBack != null) const SizedBox(width: 12),
-                if (onNext != null)
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-                    label: const Text('İleri'),
-                    onPressed: onNext,
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(120, 48)),
-                  ),
-              ],
-            ),
-          if (isSummaryStep)
-            _buildSummaryStepButton(theme),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryStepButton(ThemeData theme) {
-    return isSaving
-        ? const Center(child: CircularProgressIndicator())
-        : ElevatedButton.icon(
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Onayla ve Kaydet'),
-            onPressed: onSave,
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
-              textStyle: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-  }
-}
-
-// --- Step Card Info Model ---
-class _StepCardInfo {
-  final IconData icon;
-  final String title;
-  final String description;
-  final Color color;
-  _StepCardInfo({required this.icon, required this.title, required this.description, required this.color});
-}
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+import 'package:flutter/services.dart';
 
 class LearningThinkingStyleScreen extends StatefulWidget {
-  const LearningThinkingStyleScreen({super.key});
+  const LearningThinkingStyleScreen({Key? key}) : super(key: key);
 
   @override
-  State<LearningThinkingStyleScreen> createState() =>
-      _LearningThinkingStyleScreenState();
+  State<LearningThinkingStyleScreen> createState() => _LearningThinkingStyleScreenState();
 }
 
-class _LearningThinkingStyleScreenState
-    extends State<LearningThinkingStyleScreen> with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+class _LearningThinkingStyleScreenState extends State<LearningThinkingStyleScreen> with SingleTickerProviderStateMixin {
+  // --- Theme Colors ---
+  static const Color mainBlue = Color(0xFF2A4B7C);
+  static const Color accentCoral = Color(0xFFFF6B6B);
+  static const Color bgSoftWhite = Color(0xFFF8FAFC);
+  static const Color bgGradientEnd = Color(0xFFE6EAF0);
+  static const Color cloudGrey = Color(0xFFA0AEC0);
+  static const Color lightBlue = Color(0xFF6B7280);
+  static const Color successGreen = Color(0xFF38A169);
+  static const Color darkGrey = Color(0xFF4A4A4A);
+  static const Color gold = Color(0xFFD4A017);
 
-  // --- State Değişkenleri ---
-  User? _currentUser;
-  bool _isLoadingPage = true;
+  // --- Animation ---
+  late AnimationController _animController;
+  late Animation<double> _headerAnim;
+  late Animation<double> _fadeAnim;
+
+  // --- Soru 1: Öğrenme Tercihi ---
+  final List<String> _preferenceOptions = [
+    "Videolar ve Eğitim Platformları",
+    "Kitaplar ve Makaleler",
+    "Uygulamalı Projeler",
+    "Mentor veya Eğitim Grupları",
+    "Diğer"
+  ];
+  String? _selectedPreference;
+  bool _showCustomPreferenceInput = false;
+  String _customPreference = '';
+  final TextEditingController _customPreferenceController = TextEditingController();
+
+  // --- Soru 2: Kaynaklar ---
+  final List<String> _resourceOptions = [
+    "Online Eğitim Platformları (Udemy, Coursera)",
+    "YouTube Videoları",
+    "Açık Kaynak Belgeler (GitHub, Stack Overflow)",
+    "Kütüphane ve Akademik Kaynaklar",
+    "Diğer"
+  ];
+  final List<String> _selectedResources = [];
+  bool _showCustomResourceInput = false;
+  String _customResource = '';
+  final TextEditingController _customResourceController = TextEditingController();
+
+  // --- Soru 3: Motivasyon ---
+  final TextEditingController _motivationController = TextEditingController();
+  String _motivation = '';
+  int _motivationInspireIndex = 0;
+  bool _showMotivationInspirePopup = false;
+  final List<String> _motivationInspireList = [
+    "Kariyerimde ilerlemek için yeni beceriler kazanmak.",
+    "Gerçek projelerde uygulama yaparak öğrenmek.",
+    "Teknolojide güncel kalmak ve yenilikleri takip etmek.",
+    "Bir topluluğa katkı sağlamak ve paylaşmak."
+  ];
+
+  // --- Soru 4: Engeller ---
+  final TextEditingController _barrierController = TextEditingController();
+  String _barrier = '';
+  int _barrierInspireIndex = 0;
+  bool _showBarrierInspirePopup = false;
+  final List<String> _barrierInspireList = [
+    "Yeterli pratik yapma fırsatı bulamamak.",
+    "Zaman yönetimi zorluğu.",
+    "Karmaşık konularda motivasyon kaybı.",
+    "Kaynakların dağınık ve ulaşılması zor olması."
+  ];
+
+  // --- Progress ---
+  int get _completedCount {
+    int count = 0;
+    if ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) count++;
+    if (_selectedResources.isNotEmpty) count++;
+    if (_motivation.trim().length >= 10) count++;
+    if (_barrier.trim().length >= 10) count++;
+    return count;
+  }
+
+  // --- Firestore ---
+  bool _isLoading = true;
   bool _isSaving = false;
-  String _loadingError = '';
-  int _currentStep = 0;
-
-  // Form Alanları
-  String? _selectedLearningStyle;
-  List<String> _selectedLearningMethods = [];
-  List<String> _selectedInfoSources = [];
-  double _analyticalThinkingRating = 5.0;
-  String? _learningNote;
-
-  // --- Options ---
-  final List<String> _learningStyleOptions = [
-    'Görsel (Görerek, şemalar ve grafiklerle)',
-    'İşitsel (Dinleyerek, tartışarak, sesli anlatımla)',
-    'Kinestetik (Yaparak, hareketle, uygulamalı)',
-    'Okuma/Yazma (Yazarak, okuyarak, not alarak)',
-    'Sosyal (Grup içinde, iş birliğiyle, tartışarak)',
-    'Bireysel (Kendi başına, bağımsız çalışarak)',
-    'Analitik (Mantıksal, adım adım, problem çözerek)',
-    'Bütüncül (Genel resmi görerek, bağlantılar kurarak)',
-  ];
-  final List<String> _learningMethodsOptions = [
-    'Proje Tabanlı Öğrenme (Gerçek projeler, uygulama)',
-    'Mikro Öğrenme (Kısa, odaklı içerikler)',
-    'Video Tabanlı Eğitim (YouTube, Udemy, interaktif videolar)',
-    'Yapay Zeka Destekli Öğrenme (ChatGPT, AI araçları)',
-    'Oyunlaştırma (Gamification, ödül ve seviye sistemi)',
-    'Topluluk & Mentorluk (Discord, Slack, birebir mentorluk)',
-    'Podcast & Sesli İçerik',
-    'Blog & Makale Okuma',
-    'Online Kurslar & Sertifika Programları',
-    'Kodlama Platformları (LeetCode, HackerRank, Codewars)',
-    'Simülasyon & Sanal Laboratuvarlar',
-    'Canlı Webinar & Atölyeler',
-    'Diğer',
-  ];
-  final List<String> _infoSourcesOptions = [
-    'Resmi Dokümantasyonlar',
-    'Stack Overflow / Q&A Platformları',
-    'Video Platformları (YouTube vb.)',
-    'Teknik Bloglar / Makaleler (Medium vb.)',
-    'Yapay Zeka Araçları (ChatGPT vb.)',
-    'Online Kurslar / Eğitim İçerikleri',
-    'Kitaplar / E-kitaplar',
-    'Forumlar / Topluluklar (Discord, Reddit vb.)',
-    'Mentor / Deneyimli Kişiler',
-    'GitHub / Açık Kaynak Projeler',
-    'Teknik Web Siteleri (MDN, W3Schools vb.)',
-    'Diğer',
-  ];
-
-  late final List<_StepperStep> _stepperSteps = [
-    _StepperStep(
-      title: 'Öğrenme Tarzı',
-      description: 'Kendine en uygun olan bilimsel öğrenme stilini seç. Bu seçim, sana en verimli içerik ve yol haritası sunmamıza yardımcı olur.',
-      info: 'Örneğin: "Görsel (Görerek, şemalarla)", "İşitsel (Dinleyerek)", "Kinestetik (Yaparak)" gibi. Öğrenme stilin, bilgiyi nasıl en iyi özümsediğini gösterir.',
-      contentBuilder: (context) => _buildStatusSelector(
-        context,
-        _learningStyleOptions,
-        _selectedLearningStyle,
-        (value) => setState(() => _selectedLearningStyle = value),
-      ),
-      isRequired: true,
-      validator: () => _selectedLearningStyle != null,
-    ),
-    _StepperStep(
-      title: 'Öğrenme Yöntemleri',
-      description: 'Sana en uygun ve motive edici modern öğrenme yöntemlerini seç. (Birden fazla seçebilirsin)',
-      info: 'Örneğin: "Proje tabanlı öğrenme", "Yapay zeka destekli", "Topluluk/mentorluk" gibi. Yöntemlerin, öğrenme sürecini daha etkili ve sürdürülebilir kılar.',
-      contentBuilder: (context) => _buildMultiSelector(
-        context,
-        _learningMethodsOptions,
-        _selectedLearningMethods,
-        (value) {
-          setState(() {
-            if (_selectedLearningMethods.contains(value)) {
-              _selectedLearningMethods.remove(value);
-            } else {
-              _selectedLearningMethods.add(value);
-            }
-          });
-        },
-      ),
-      isRequired: true,
-      validator: () => _selectedLearningMethods.isNotEmpty,
-    ),
-    _StepperStep(
-      title: 'Bilgi Kaynakları',
-      description: 'Öğrenme sürecinde en çok başvurduğun bilgi kaynaklarını seç. (Birden fazla seçebilirsin)',
-      info: 'Örneğin: "Resmi Dokümantasyonlar", "YouTube", "ChatGPT" gibi.',
-      contentBuilder: (context) => _buildMultiSelector(
-        context,
-        _infoSourcesOptions,
-        _selectedInfoSources,
-        (value) {
-          setState(() {
-            if (_selectedInfoSources.contains(value)) {
-              _selectedInfoSources.remove(value);
-            } else {
-              _selectedInfoSources.add(value);
-            }
-          });
-        },
-      ),
-      isRequired: true,
-      validator: () => _selectedInfoSources.isNotEmpty,
-    ),
-    _StepperStep(
-      title: 'Analitik Düşünme Eğilimi',
-      description: 'Analitik düşünme ve problem çözme becerini 1-10 arasında değerlendir. (1: Düşük, 10: Çok Yüksek)',
-      info: 'Bu bilgi, sana uygun zorluk seviyesindeki içerikleri belirlememize yardımcı olur.',
-      contentBuilder: (context) => Slider(
-        value: _analyticalThinkingRating,
-        min: 1,
-        max: 10,
-        divisions: 9,
-        label: _analyticalThinkingRating.round().toString(),
-        onChanged: (value) => setState(() => _analyticalThinkingRating = value),
-      ),
-      isRequired: true,
-      validator: () => _analyticalThinkingRating >= 1 && _analyticalThinkingRating <= 10,
-    ),
-    _StepperStep(
-      title: 'Kısa Not (İsteğe Bağlı)',
-      description: 'Öğrenme sürecinle ilgili paylaşmak istediğin kısa bir notun var mı?',
-      info: 'Örneğin: "En iyi grup çalışmasında öğreniyorum.", "Kısa videoları tercih ediyorum." gibi.',
-      contentBuilder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: TextFormField(
-          initialValue: _learningNote,
-          decoration: InputDecoration(
-            labelText: 'Kısa Not (isteğe bağlı)',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            prefixIcon: const Icon(Icons.short_text_rounded),
-          ),
-          maxLines: 2,
-          onChanged: (value) => setState(() => _learningNote = value),
-        ),
-      ),
-      isRequired: false,
-      validator: () => true,
-    ),
-    _StepperStep(
-      title: 'Özet ve Onay',
-      description: 'Tüm verdiğin bilgileri gözden geçir ve onayla.',
-      info: 'Bilgilerini kontrol et. Kaydettikten sonra profilinde güncellenmiş olarak göreceksin.',
-      contentBuilder: (context) => _buildSummaryCard(context),
-      isRequired: true,
-      validator: () => true,
-    ),
-  ];
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _currentUser = _auth.currentUser;
-    if (_currentUser != null) {
-      _loadSavedData();
-    } else {
-      setState(() {
-        _isLoadingPage = false;
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _showFeedback('Önce giriş yapmalısınız.', isError: true);
-          if (Navigator.canPop(context)) Navigator.of(context).pop();
-        }
-      });
-    }
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _headerAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic);
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeIn);
+    _animController.forward();
+    _fetchExistingData();
   }
 
-  Future<void> _loadSavedData() async {
-    if (_currentUser == null) return;
-    setState(() {
-      _isLoadingPage = true;
-      _loadingError = '';
-    });
-    try {
-      DocumentSnapshot<Map<String, dynamic>> snapshot =
-          await _firestore
-              .collection('users')
-              .doc(_currentUser!.uid)
-              .collection('profile_data')
-              .doc('learning_thinking_style_v2')
-              .get();
-      if (snapshot.exists && snapshot.data() != null) {
-        final data = snapshot.data()!;
-        if (mounted) {
-          setState(() {
-            _selectedLearningStyle = data['learning_style'];
-            _selectedLearningMethods = List<String>.from(data['learning_methods'] ?? []);
-            _selectedInfoSources = List<String>.from(data['info_sources'] ?? []);
-            _analyticalThinkingRating = (data['analytical_thinking'] ?? 5.0).toDouble();
-            _learningNote = data['learning_note'];
-          });
-        }
-      }
-    } catch (e) {
-      print("HATA: learning_thinking_style_v2 verisi yüklenemedi: $e");
-      _loadingError = 'Kaydedilmiş veriler yüklenirken bir sorun oluştu.';
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingPage = false;
-        });
-      }
+  Future<void> _fetchExistingData() async {
+    setState(() => _isLoading = true);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _isLoading = false);
+      return;
     }
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('user_profile')
+        .doc('learning_style')
+        .get();
+    if (doc.exists) {
+      final data = doc.data() ?? {};
+      setState(() {
+        _selectedPreference = data['preference'] ?? '';
+        _customPreference = data['custom_preference'] ?? '';
+        _selectedResources.clear();
+        _selectedResources.addAll(List<String>.from(data['resources'] ?? []));
+        _customResource = data['custom_resource'] ?? '';
+        _motivation = data['motivation'] ?? '';
+        _motivationController.text = _motivation;
+        _barrier = data['barriers'] ?? '';
+        _barrierController.text = _barrier;
+      });
+    }
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _saveData() async {
+    setState(() => _isSaving = true);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _isSaving = false);
+      return;
+    }
+    final data = {
+      'preference': _selectedPreference ?? '',
+      'custom_preference': _customPreference,
+      'resources': _selectedResources,
+      'custom_resource': _customResource,
+      'motivation': _motivation.trim(),
+      'barriers': _barrier.trim(),
+    };
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('user_profile')
+        .doc('learning_style')
+        .set(data, SetOptions(merge: true));
+    if (mounted) Navigator.of(context).pop(true);
+    setState(() => _isSaving = false);
+  }
+
+  double _responsiveFont(BuildContext context, num base) {
+    final scale = MediaQuery.of(context).textScaleFactor;
+    return (base * scale).clamp(16, 20).toDouble();
+  }
+
+  void _showMotivationInspire() {
+    setState(() {
+      _showMotivationInspirePopup = true;
+      _motivationInspireIndex = (_motivationInspireIndex + 1) % _motivationInspireList.length;
+    });
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted) setState(() => _showMotivationInspirePopup = false);
+    });
+  }
+
+  void _showBarrierInspire() {
+    setState(() {
+      _showBarrierInspirePopup = true;
+      _barrierInspireIndex = (_barrierInspireIndex + 1) % _barrierInspireList.length;
+    });
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted) setState(() => _showBarrierInspirePopup = false);
+    });
   }
 
   @override
   void dispose() {
+    _animController.dispose();
+    _customPreferenceController.dispose();
+    _customResourceController.dispose();
+    _motivationController.dispose();
+    _barrierController.dispose();
     super.dispose();
-  }
-
-  Future<void> _saveToFirestore() async {
-    if (_currentUser == null) return;
-    setState(() => _isSaving = true);
-    try {
-      final data = {
-        'learning_style': _selectedLearningStyle,
-        'learning_methods': _selectedLearningMethods,
-        'info_sources': _selectedInfoSources,
-        'analytical_thinking': _analyticalThinkingRating,
-        'learning_note': _learningNote,
-        'updated_at': FieldValue.serverTimestamp(),
-      };
-      await _firestore
-          .collection('users')
-          .doc(_currentUser!.uid)
-          .collection('profile_data')
-          .doc('learning_thinking_style_v2')
-          .set(data, SetOptions(merge: true));
-      if (mounted) {
-        _showFeedback('Öğrenme stili başarıyla kaydedildi!', isError: false);
-      }
-    } catch (e) {
-      _showFeedback('Bilgiler kaydedilirken bir hata oluştu.', isError: true);
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  void _showFeedback(String message, {required bool isError}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).removeCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(10),
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final size = MediaQuery.of(context).size;
+    final double horizontalPadding = 12;
+    final double cardPadding = 20;
+    final double maxCardWidth = 520;
+    final double cardWidth = size.width - 2 * horizontalPadding < maxCardWidth
+        ? size.width - 2 * horizontalPadding
+        : maxCardWidth;
+    final double borderRadius = 10;
+    final double elevation = 6;
+    final double progress = 4 / 7;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Öğrenme ve Düşünme Stili'),
-        elevation: 1,
-      ),
-      body: _isLoadingPage
-          ? const Center(child: CircularProgressIndicator())
-          : _buildStepper(theme),
-    );
-  }
-
-  Widget _buildStepper(ThemeData theme) {
-    return Column(
-      children: [
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 400),
-          transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-          child: _buildDynamicInfoCard(theme, _currentStep, key: ValueKey(_currentStep)),
-        ),
-        LinearProgressIndicator(
-          value: (_currentStep + 1) / _stepperSteps.length,
-          minHeight: 6,
-          backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-          valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
-        ),
-        Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 400),
-            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-            child: StepperBody(
-              key: ValueKey(_currentStep),
-              step: _stepperSteps[_currentStep],
-              stepIndex: _currentStep,
-              totalSteps: _stepperSteps.length,
-              isSaving: _isSaving,
-              onBack: _currentStep > 0 ? () => setState(() => _currentStep--) : null,
-              onNext: _currentStep < _stepperSteps.length - 1
-                  ? () {
-                      if (_stepperSteps[_currentStep].validator()) {
-                        setState(() => _currentStep++);
-                      } else {
-                        _showFeedback('Lütfen gerekli alanları doldurun.', isError: true);
-                      }
-                    }
-                  : null,
-              onSave: _currentStep == _stepperSteps.length - 1 && !_isSaving
-                  ? _saveToFirestore
-                  : null,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatusSelector(
-    BuildContext context,
-    List<String> options,
-    String? selectedValue,
-    Function(String?) onChanged,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ...options.map((option) {
-          final isSelected = selectedValue == option;
-          return Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(bottom: 8),
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                : Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                width: isSelected ? 2 : 1,
-              ),
-            ),
-            child: RadioListTile<String>(
-              title: Text(
-                option,
-                style: TextStyle(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 15,
-                ),
-              ),
-              value: option,
-              groupValue: selectedValue,
-              onChanged: !_isSaving ? onChanged : null,
-              activeColor: Theme.of(context).colorScheme.primary,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          );
-        }).toList(),
-        if (selectedValue == null && _isSaving)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(
-              'Lütfen bir seçim yapın',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-                fontSize: 12,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildMultiSelector(
-    BuildContext context,
-    List<String> options,
-    List<String> selectedValues,
-    Function(String) onChanged,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: options.map((option) {
-            final isSelected = selectedValues.contains(option);
-            return FilterChip(
-              label: Text(
-                option,
-                style: TextStyle(
-                  color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-              selected: isSelected,
-              onSelected: (selected) {
-                if (_isSaving) return;
-                onChanged(option);
-              },
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-              checkmarkColor: Theme.of(context).colorScheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                  width: isSelected ? 2 : 1,
-                ),
-              ),
-              elevation: isSelected ? 2 : 0,
-            );
-          }).toList(),
-        ),
-        if (selectedValues.isEmpty && _isSaving)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(
-              'Lütfen en az bir seçim yapın',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-                fontSize: 12,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryCard(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Özet', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _buildSummaryRow('Öğrenme Tarzı', _selectedLearningStyle),
-            _buildSummaryRow('Öğrenme Yöntemleri', _selectedLearningMethods.join(', ')),
-            _buildSummaryRow('Bilgi Kaynakları', _selectedInfoSources.join(', ')),
-            _buildSummaryRow('Analitik Düşünme', _analyticalThinkingRating.toString()),
-            _buildSummaryRow('Kısa Not', _learningNote),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      backgroundColor: bgSoftWhite,
+      body: Stack(
         children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(
-            child: Text((value == null || value.isEmpty) ? '-' : value),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [bgSoftWhite, bgGradientEnd],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+          if (_showMotivationInspirePopup)
+            Center(
+              child: AnimatedOpacity(
+                opacity: _showMotivationInspirePopup ? 1 : 0,
+                duration: const Duration(milliseconds: 400),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: gold.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gold.withOpacity(0.18),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _motivationInspireList[_motivationInspireIndex],
+                    style: GoogleFonts.inter(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          if (_showBarrierInspirePopup)
+            Center(
+              child: AnimatedOpacity(
+                opacity: _showBarrierInspirePopup ? 1 : 0,
+                duration: const Duration(milliseconds: 400),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: gold.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gold.withOpacity(0.18),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _barrierInspireList[_barrierInspireIndex],
+                    style: GoogleFonts.inter(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: size.height,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
+                    child: ScaleTransition(
+                      scale: _headerAnim,
+                      child: Container(
+                        width: cardWidth,
+                        constraints: BoxConstraints(maxWidth: maxCardWidth),
+                        padding: EdgeInsets.all(cardPadding),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(borderRadius),
+                          boxShadow: [
+                            BoxShadow(
+                              color: mainBlue.withOpacity(0.10),
+                              blurRadius: elevation,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Üst Bilgi
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [mainBlue, gold],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Icon(Icons.menu_book_rounded, color: gold, size: 36),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Öğrenme Stilinizi Keşfedin',
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 30,
+                                          color: mainBlue,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        semanticsLabel: 'Öğrenme Stili Kartı Başlığı',
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Bilişim dünyasında nasıl öğreniyorsunuz? Tercihlerinizi paylaşın, size özel bir öğrenme planı oluşturalım.',
+                                        style: GoogleFonts.inter(fontSize: 16, color: cloudGrey),
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        semanticsLabel: 'Öğrenme Stili Kartı Açıklama',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.explore, color: gold, size: 28),
+                                  onPressed: () => _showGuide(context),
+                                  tooltip: 'Rehber',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Öğrenme yolculuğunuzu şekillendirmek için ilk adımı atın!',
+                              style: GoogleFonts.inter(fontSize: 15, color: mainBlue, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 18),
+                            // Soru 1: Öğrenme Tercihi
+                            _AnimatedQuestionCard(
+                              completed: (_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty,
+                              borderColor: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) ? gold : cloudGrey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Bilişim konularını öğrenirken en çok hangi yöntemi tercih edersiniz?',
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: _responsiveFont(context, 18),
+                                      color: mainBlue,
+                                    ),
+                                    semanticsLabel: 'Öğrenme tercihi başlığı',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: _preferenceOptions.map((option) {
+                                      final selected = _selectedPreference == option;
+                                      return ChoiceChip(
+                                        label: Text(
+                                          option,
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w500,
+                                            color: selected ? Colors.white : mainBlue,
+                                          ),
+                                        ),
+                                        selected: selected,
+                                        backgroundColor: Colors.white,
+                                        selectedColor: gold,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          side: BorderSide(color: selected ? gold : cloudGrey, width: 1.5),
+                                        ),
+                                        onSelected: (val) {
+                                          setState(() {
+                                            if (option == 'Diğer') {
+                                              _showCustomPreferenceInput = val;
+                                              if (!val) _customPreferenceController.clear();
+                                            } else {
+                                              if (val) {
+                                                _selectedPreference = option;
+                                                _showCustomPreferenceInput = false;
+                                                _customPreferenceController.clear();
+                                              } else {
+                                                _selectedPreference = null;
+                                              }
+                                            }
+                                          });
+                                        },
+                                        avatar: option == 'Diğer' ? const Icon(Icons.add, size: 18, color: gold) : null,
+                                      );
+                                    }).toList(),
+                                  ),
+                                  if (_showCustomPreferenceInput) ...[
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _customPreferenceController,
+                                            maxLength: 30,
+                                            style: GoogleFonts.inter(
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: _responsiveFont(context, 15),
+                                              color: mainBlue,
+                                            ),
+                                            decoration: InputDecoration(
+                                              hintText: 'Kendi yönteminizi yazın',
+                                              counterText: '',
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                                borderSide: const BorderSide(color: cloudGrey, width: 1),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                                borderSide: const BorderSide(color: gold, width: 2),
+                                              ),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                              hintStyle: GoogleFonts.inter(color: lightBlue),
+                                            ),
+                                            onChanged: (val) => setState(() => _customPreference = val),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton(
+                                          onPressed: _customPreference.trim().isNotEmpty
+                                              ? () {
+                                                  setState(() {
+                                                    _selectedPreference = '';
+                                                  });
+                                                }
+                                              : null,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: gold,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                          ),
+                                          child: const Text('Ekle'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Size en uygun öğrenme yöntemini seçin. Bu, önerilerimizi kişiselleştirecek.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: _responsiveFont(context, 14),
+                                      color: lightBlue,
+                                    ),
+                                    semanticsLabel: 'Öğrenme tercihi ipucu',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Soru 2: Kaynaklar
+                            _AnimatedQuestionCard(
+                              completed: _selectedResources.isNotEmpty,
+                              borderColor: _selectedResources.isNotEmpty ? gold : cloudGrey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Hangi kaynakları öğrenme sürecinizde sık kullanıyorsunuz?',
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: _responsiveFont(context, 18),
+                                            color: mainBlue,
+                                          ),
+                                          semanticsLabel: 'Öğrenme kaynakları başlığı',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${_selectedResources.length}/3',
+                                        style: GoogleFonts.inter(
+                                          fontSize: _responsiveFont(context, 14),
+                                          color: gold,
+                                        ),
+                                        semanticsLabel: 'Seçilen kaynak sayısı',
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: _resourceOptions.map((option) {
+                                      final selected = _selectedResources.contains(option);
+                                      return ChoiceChip(
+                                        label: Text(
+                                          option,
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w500,
+                                            color: selected ? Colors.white : mainBlue,
+                                          ),
+                                        ),
+                                        selected: selected,
+                                        backgroundColor: Colors.white,
+                                        selectedColor: gold,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          side: BorderSide(color: selected ? gold : cloudGrey, width: 1.5),
+                                        ),
+                                        onSelected: (val) {
+                                          setState(() {
+                                            if (option == 'Diğer') {
+                                              _showCustomResourceInput = val;
+                                              if (!val) _customResourceController.clear();
+                                            } else {
+                                              if (val && _selectedResources.length < 3) {
+                                                _selectedResources.add(option);
+                                              } else if (!val) {
+                                                _selectedResources.remove(option);
+                                              }
+                                            }
+                                          });
+                                        },
+                                        avatar: option == 'Diğer' ? const Icon(Icons.add, size: 18, color: gold) : null,
+                                      );
+                                    }).toList(),
+                                  ),
+                                  if (_showCustomResourceInput) ...[
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _customResourceController,
+                                            maxLength: 30,
+                                            style: GoogleFonts.inter(
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: _responsiveFont(context, 15),
+                                              color: mainBlue,
+                                            ),
+                                            decoration: InputDecoration(
+                                              hintText: 'Kendi kaynağınızı yazın',
+                                              counterText: '',
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                                borderSide: const BorderSide(color: cloudGrey, width: 1),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                                borderSide: const BorderSide(color: gold, width: 2),
+                                              ),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                              hintStyle: GoogleFonts.inter(color: lightBlue),
+                                            ),
+                                            onChanged: (val) => setState(() => _customResource = val),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton(
+                                          onPressed: _customResource.trim().isNotEmpty && _selectedResources.length < 3
+                                              ? () {
+                                                  setState(() {
+                                                    _selectedResources.add(_customResource.trim());
+                                                    _customResourceController.clear();
+                                                    _customResource = '';
+                                                    _showCustomResourceInput = false;
+                                                  });
+                                                }
+                                              : null,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: gold,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                          ),
+                                          child: const Text('Ekle'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'En fazla 3 kaynağı seçin. Bu, öğrenme önerilerimizi şekillendirecek.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: _responsiveFont(context, 14),
+                                      color: lightBlue,
+                                    ),
+                                    semanticsLabel: 'Öğrenme kaynakları ipucu',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Soru 3: Motivasyon
+                            _AnimatedQuestionCard(
+                              completed: _motivation.trim().length >= 10,
+                              borderColor: _motivation.trim().length >= 10 ? gold : cloudGrey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Bilişim öğrenirken sizi en çok ne motive eder?',
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: _responsiveFont(context, 18),
+                                            color: mainBlue,
+                                          ),
+                                          semanticsLabel: 'Öğrenme motivasyonu başlığı',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: _showMotivationInspire,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: mainBlue.withOpacity(0.08),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(Icons.lightbulb, color: gold, size: 24, semanticLabel: 'İlham önerisi göster'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _motivationController,
+                                    maxLength: 100,
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: _responsiveFont(context, 16),
+                                      color: mainBlue,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Örneğin: Yeni teknolojiler keşfetmek ve projeler geliştirmek.',
+                                      counterText: '',
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: cloudGrey, width: 1),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: gold, width: 2),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      hintStyle: GoogleFonts.inter(color: lightBlue),
+                                    ),
+                                    onChanged: (val) => setState(() => _motivation = val),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Sizi motive eden şeyleri düşünün. Bu, öğrenme stratejinizi güçlendirecek.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: _responsiveFont(context, 14),
+                                      color: lightBlue,
+                                    ),
+                                    semanticsLabel: 'Öğrenme motivasyonu ipucu',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Soru 4: Engeller
+                            _AnimatedQuestionCard(
+                              completed: _barrier.trim().length >= 10,
+                              borderColor: _barrier.trim().length >= 10 ? gold : cloudGrey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Öğrenme sürecinizde en büyük engeliniz nedir?',
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: _responsiveFont(context, 18),
+                                            color: mainBlue,
+                                          ),
+                                          semanticsLabel: 'Öğrenme engelleri başlığı',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: _showBarrierInspire,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: mainBlue.withOpacity(0.08),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(Icons.lightbulb, color: gold, size: 24, semanticLabel: 'İlham önerisi göster'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _barrierController,
+                                    maxLength: 100,
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: _responsiveFont(context, 16),
+                                      color: mainBlue,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Örneğin: Zaman yönetimi veya karmaşık konular.',
+                                      counterText: '',
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: cloudGrey, width: 1),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: gold, width: 2),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      hintStyle: GoogleFonts.inter(color: lightBlue),
+                                    ),
+                                    onChanged: (val) => setState(() => _barrier = val),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Engellerinizi dürüstçe paylaşın. Size uygun çözümler önereceğiz.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: _responsiveFont(context, 14),
+                                      color: lightBlue,
+                                    ),
+                                    semanticsLabel: 'Öğrenme engelleri ipucu',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            // Progress bar ve butonlar
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Stack(
+                                    children: [
+                                      Container(
+                                        height: 7,
+                                        decoration: BoxDecoration(
+                                          color: cloudGrey,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 400),
+                                        height: 7,
+                                        width: (cardWidth - 40) * progress,
+                                        decoration: BoxDecoration(
+                                          color: mainBlue,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Icon(Icons.explore, color: mainBlue, size: 20),
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: mainBlue,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '4/7',
+                                    style: GoogleFonts.inter(
+                                      fontSize: _responsiveFont(context, 14),
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: ElevatedButton(
+                                onPressed: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
+                                        _selectedResources.isNotEmpty &&
+                                        _motivation.trim().length >= 10 &&
+                                        _barrier.trim().length >= 10
+                                    ? _saveData
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
+                                          _selectedResources.isNotEmpty &&
+                                          _motivation.trim().length >= 10 &&
+                                          _barrier.trim().length >= 10
+                                      ? accentCoral
+                                      : cloudGrey,
+                                  foregroundColor: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
+                                          _selectedResources.isNotEmpty &&
+                                          _motivation.trim().length >= 10 &&
+                                          _barrier.trim().length >= 10
+                                      ? Colors.white
+                                      : darkGrey,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  textStyle: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: _responsiveFont(context, 18),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text('Kaydet ve İlerle'),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Öğrenme stilinizi tanımlayarak yolculuğunuzu güçlendirin.',
+                              style: GoogleFonts.inter(
+                                fontSize: _responsiveFont(context, 14),
+                                color: lightBlue,
+                              ),
+                              semanticsLabel: 'Kart tamamlama ipucu',
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.arrow_back_ios_new_rounded,
+                                  color: lightBlue,
+                                  size: 24,
+                                ),
+                                onPressed: () => Navigator.of(context).maybePop(),
+                                tooltip: 'Geri',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  // --- Dynamic Info Card ---
-  Widget _buildDynamicInfoCard(ThemeData theme, int step, {Key? key}) {
-    final List<_StepCardInfo> cardInfos = [
-      _StepCardInfo(
-        icon: Icons.psychology_alt_rounded,
-        title: 'Öğrenme Tarzı',
-        description: 'Kendine en uygun olan bilimsel öğrenme stilini seç. Bu seçim, sana en verimli içerik ve yol haritası sunmamıza yardımcı olur.',
-        color: theme.colorScheme.primary,
-      ),
-      _StepCardInfo(
-        icon: Icons.menu_book_rounded,
-        title: 'Öğrenme Yöntemleri',
-        description: 'Sana en uygun ve motive edici modern öğrenme yöntemlerini seç. (Birden fazla seçebilirsin)',
-        color: theme.colorScheme.secondary,
-      ),
-      _StepCardInfo(
-        icon: Icons.source_rounded,
-        title: 'Bilgi Kaynakları',
-        description: 'Öğrenme sürecinde en çok başvurduğun bilgi kaynaklarını seç. (Birden fazla seçebilirsin)',
-        color: theme.colorScheme.tertiary,
-      ),
-      _StepCardInfo(
-        icon: Icons.analytics_rounded,
-        title: 'Analitik Düşünme',
-        description: 'Analitik düşünme ve problem çözme becerini 1-10 arasında değerlendir.',
-        color: theme.colorScheme.primary,
-      ),
-      _StepCardInfo(
-        icon: Icons.short_text_rounded,
-        title: 'Kısa Not',
-        description: 'Öğrenme sürecinle ilgili paylaşmak istediğin kısa bir notun var mı?',
-        color: theme.colorScheme.secondary,
-      ),
-      _StepCardInfo(
-        icon: Icons.check_circle_outline,
-        title: 'Özet ve Onay',
-        description: 'Tüm verdiğin bilgileri gözden geçir ve onayla.',
-        color: theme.colorScheme.primary,
-      ),
-    ];
-    final info = cardInfos[step.clamp(0, cardInfos.length - 1)];
-    return Card(
-      key: key,
-      elevation: 4,
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: info.color.withOpacity(0.08),
+  void _showGuide(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Öğrenme Stili Kartı',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: mainBlue),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: info.color.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                info.icon,
-                color: info.color,
-                size: 32,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    info.title,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: info.color,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    info.description,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.9),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        content: const Text(
+          'Bu kart, öğrenme alışkanlıklarınızı anlamanıza yardımcı olur. Tercihlerinizi belirleyin ve öğrenme stratejinizi güçlendirin.',
+          style: TextStyle(fontSize: 16, color: darkGrey),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Kapat'),
+          ),
+        ],
       ),
     );
   }
 }
+
+class _AnimatedQuestionCard extends StatelessWidget {
+  final Widget child;
+  final bool completed;
+  final Color borderColor;
+  const _AnimatedQuestionCard({required this.child, required this.completed, required this.borderColor});
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: _LearningThinkingStyleScreenState.gold.withOpacity(0.10),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            border: Border.all(
+              color: borderColor,
+              width: completed ? 2 : 1,
+            ),
+          ),
+          child: child,
+        ),
+        if (completed)
+          Positioned(
+            top: 10,
+            right: 10,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _LearningThinkingStyleScreenState.successGreen.withOpacity(0.18),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(2),
+                child: Icon(Icons.check_circle, color: _LearningThinkingStyleScreenState.successGreen, size: 22),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+} 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:uuid/uuid.dart';
 import 'package:provider/provider.dart';
 import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
 import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
@@ -11,14 +10,14 @@ import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
 import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
 import 'package:skillcompass_frontend/features/profile/services/profile_service.dart';
 
-class TechnicalProfileScreen extends StatefulWidget {
-  const TechnicalProfileScreen({Key? key}) : super(key: key);
+class CareerVisionScreen extends StatefulWidget {
+  const CareerVisionScreen({super.key});
 
   @override
-  State<TechnicalProfileScreen> createState() => _TechnicalProfileScreenState();
+  State<CareerVisionScreen> createState() => _CareerVisionScreenState();
 }
 
-class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with SingleTickerProviderStateMixin {
+class _CareerVisionScreenState extends State<CareerVisionScreen> with SingleTickerProviderStateMixin {
   final ProfileService _profileService = ProfileService();
   final _formKey = GlobalKey<FormState>();
   
@@ -28,64 +27,43 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
   bool _isEditMode = false;
   late TabController _tabController;
 
-  // --- State Variables ---
-  String? _selectedPrimaryField;
-  String? _selectedExperienceLevel;
-  List<String> _selectedTechnologies = [];
-  List<String> _selectedSkills = [];
-  String? _projectExperience;
-  double _technicalConfidence = 5.0;
+  // --- State Değişkenleri ---
+  String? _selectedOneYearGoal;
+  String? _oneYearGoalDetail;
+  String? _selectedFiveYearVision;
+  String? _fiveYearVisionDetail;
+  List<String> _selectedMotivationSources = [];
+  String? _profileTagline;
 
-  // --- Options Lists ---
-  final List<String> _primaryFieldOptions = [
-    'Frontend Geliştirme',
-    'Backend Geliştirme',
-    'Fullstack Geliştirme',
-    'Mobil Uygulama Geliştirme',
-    'Oyun Geliştirme',
-    'Veri Bilimi / Analitiği',
-    'Bulut Teknolojileri',
-    'DevOps / SRE',
-    'Siber Güvenlik',
-    'UI/UX Tasarım',
-    'Yapay Zeka / Makine Öğrenmesi',
-    'Gömülü Sistemler / IoT',
+  // --- Options ---
+  final List<String> _oneYearGoalOptions = [
+    'Yeni bir teknoloji öğrenmek',
+    'İlk işimi/stajımı bulmak',
+    'Bir projede liderlik yapmak',
+    'Açık kaynak katkısı yapmak',
+    'Kariyerimde terfi almak',
+    'Kendi girişimimi başlatmak',
     'Diğer',
   ];
-
-  final List<String> _experienceLevelOptions = [
-    'Başlangıç Seviyesi (0-1 yıl)',
-    'Junior (1-2 yıl)',
-    'Junior-Mid (2-3 yıl)',
-    'Mid-level (3-5 yıl)',
-    'Senior (5+ yıl)',
-    'Lead / Principle (8+ yıl)',
+  final List<String> _fiveYearVisionOptions = [
+    'Alanında uzmanlaşmak',
+    'Uluslararası bir şirkette çalışmak',
+    'Kendi şirketini kurmak',
+    'Teknik lider olmak',
+    'Global projelerde yer almak',
+    'Akademik kariyer yapmak',
+    'Diğer',
   ];
-
-  final List<String> _technologiesOptions = [
-    'JavaScript', 'TypeScript', 'React', 'Vue.js', 'Angular',
-    'Node.js', 'Python', 'Django', 'Flask', 'Java', 'Spring',
-    'C#', '.NET', 'PHP', 'Laravel', 'Ruby', 'Rails',
-    'Swift', 'Kotlin', 'Flutter', 'React Native',
-    'MySQL', 'PostgreSQL', 'MongoDB', 'SQLite', 'Redis',
-    'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes',
-    'Git', 'CI/CD', 'Jenkins', 'GitHub Actions',
-    'TensorFlow', 'PyTorch', 'Scikit-learn', 'Pandas', 'Numpy',
-    'HTML', 'CSS', 'SASS/SCSS', 'Tailwind CSS', 'Bootstrap',
-    'GraphQL', 'REST API', 'WebSockets',
-    'Unity', 'Unreal Engine',
-  ];
-
-  final List<String> _skillsOptions = [
-    'Algoritma Tasarımı', 'Veri Yapıları', 'Nesne Yönelimli Programlama', 
-    'Fonksiyonel Programlama', 'Test Yazımı (TDD/BDD)', 'Kod Gözden Geçirme',
-    'Veritabanı Tasarımı', 'API Tasarımı', 'Sistem Tasarımı',
-    'Performans Optimizasyonu', 'Güvenlik Uygulamaları', 'Bellek Yönetimi',
-    'Mikroservis Mimarisi', 'Monolitik Mimari', 'Serverless Mimari',
-    'Clean Code / SOLID İlkeleri', 'Design Patterns', 'Continuous Integration',
-    'Problem Çözme', 'Debugging', 'Refactoring', 'Code Documentation',
-    'Responsive Design', 'Cross-platform Geliştirme', 'UI/UX Prensipleri',
-    'Event-Driven Programming', 'Concurrency / Paralel Programlama',
+  final List<String> _motivationSourcesOptions = [
+    'Öğrenme & Gelişim',
+    'Problem Çözme',
+    'Maddi Güvence',
+    'Kariyerde Yükselme',
+    'Etki Yaratma',
+    'Esneklik',
+    'Yaratıcılık',
+    'Teknolojiye İlgi',
+    'Diğer',
   ];
 
   @override
@@ -108,16 +86,16 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
     });
 
     try {
-      final data = await _profileService.loadTechnicalProfile();
+      final data = await _profileService.loadCareerVision();
       
       if (data != null) {
         setState(() {
-          _selectedPrimaryField = data['primary_field'];
-          _selectedExperienceLevel = data['experience_level'];
-          _selectedTechnologies = List<String>.from(data['technologies'] ?? []);
-          _selectedSkills = List<String>.from(data['skills'] ?? []);
-          _projectExperience = data['project_experience'];
-          _technicalConfidence = (data['technical_confidence'] ?? 5.0).toDouble();
+          _selectedOneYearGoal = data['one_year_goal'];
+          _oneYearGoalDetail = data['one_year_goal_detail'];
+          _selectedFiveYearVision = data['five_year_vision'];
+          _fiveYearVisionDetail = data['five_year_vision_detail'];
+          _selectedMotivationSources = List<String>.from(data['motivation_sources'] ?? []);
+          _profileTagline = data['profile_tagline'];
         });
       }
     } catch (e) {
@@ -135,19 +113,19 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
     setState(() => _isSaving = true);
     try {
       final data = {
-        'primary_field': _selectedPrimaryField,
-        'experience_level': _selectedExperienceLevel,
-        'technologies': _selectedTechnologies,
-        'skills': _selectedSkills,
-        'project_experience': _projectExperience,
-        'technical_confidence': _technicalConfidence,
+        'one_year_goal': _selectedOneYearGoal,
+        'one_year_goal_detail': _oneYearGoalDetail,
+        'five_year_vision': _selectedFiveYearVision,
+        'five_year_vision_detail': _fiveYearVisionDetail,
+        'motivation_sources': _selectedMotivationSources,
+        'profile_tagline': _profileTagline,
       };
       
-      await _profileService.saveTechnicalProfile(data);
+      await _profileService.saveCareerVision(data);
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Teknik profil başarıyla kaydedildi!'),
+          content: Text('Kariyer vizyonu başarıyla kaydedildi!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -171,7 +149,7 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Teknik Profil'),
+        title: const Text('Kariyer Vizyonu'),
         actions: [
           if (!_isEditMode)
             IconButton(
@@ -199,9 +177,9 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
                       child: TabBar(
                         controller: _tabController,
                         tabs: const [
-                          Tab(text: 'Ana Bilgiler'),
-                          Tab(text: 'Teknolojiler'),
-                          Tab(text: 'Yetenekler'),
+                          Tab(text: 'Kısa Vade'),
+                          Tab(text: 'Uzun Vade'),
+                          Tab(text: 'Motivasyon'),
                         ],
                         labelColor: theme.colorScheme.primary,
                         unselectedLabelColor: theme.colorScheme.onSurface,
@@ -213,9 +191,9 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _buildPrimaryFieldTab(theme),
-                          _buildTechnologiesTab(theme),
-                          _buildSkillsTab(theme),
+                          _buildShortTermTab(theme),
+                          _buildLongTermTab(theme),
+                          _buildMotivationTab(theme),
                         ],
                       ),
                     ),
@@ -224,7 +202,7 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
     );
   }
 
-  Widget _buildPrimaryFieldTab(ThemeData theme) {
+  Widget _buildShortTermTab(ThemeData theme) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -232,146 +210,97 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
         children: [
           _buildInfoCard(
             theme,
-            title: 'Ana Uzmanlık Alanı',
-            value: _selectedPrimaryField ?? 'Belirtilmemiş',
-            icon: Icons.code,
-            description: 'Temel uzmanlık ve odak alanın',
+            title: '1 Yıllık Hedef',
+            value: _selectedOneYearGoal ?? 'Belirtilmemiş',
+            icon: Icons.looks_one_rounded,
+            description: 'Kısa vadede ulaşmak istediğin ana kariyer hedefin',
           ),
           const SizedBox(height: 16),
-          _buildInfoCard(
-            theme,
-            title: 'Deneyim Seviyesi',
-            value: _selectedExperienceLevel ?? 'Belirtilmemiş',
-            icon: Icons.timeline_outlined,
-            description: 'Mevcut teknik deneyim seviyesi',
-          ),
-          const SizedBox(height: 16),
-          _buildInfoCard(
-            theme,
-            title: 'Teknik Özgüven',
-            value: _getTechnicalConfidenceText(),
-            icon: Icons.insights,
-            description: 'Teknik problemleri çözme konusundaki özgüvenin',
-          ),
+          if (_oneYearGoalDetail?.isNotEmpty == true) ...[
+            _buildInfoCard(
+              theme,
+              title: 'Hedef Detayı',
+              value: _oneYearGoalDetail!,
+              icon: Icons.edit_note_rounded,
+              description: 'Kısa vadeli hedefin hakkında ek detaylar',
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (_profileTagline?.isNotEmpty == true) ...[
+            _buildInfoCard(
+              theme,
+              title: 'Profil Sloganı',
+              value: _profileTagline!,
+              icon: Icons.short_text_rounded,
+              description: 'Kendini tanımlayan kısa bir slogan',
+            ),
+            const SizedBox(height: 16),
+          ],
           if (_isEditMode) ...[
             const SizedBox(height: 24),
             Text(
-              'Ana Uzmanlık Alanı',
+              '1 Yıllık Hedef',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _buildStatusSelector(
-              context,
-              _primaryFieldOptions,
-              _selectedPrimaryField,
-              (value) => setState(() => _selectedPrimaryField = value),
-            ),
-            const SizedBox(height: 24),
             Text(
-              'Deneyim Seviyesi',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            _buildStatusSelector(
-              context,
-              _experienceLevelOptions,
-              _selectedExperienceLevel,
-              (value) => setState(() => _selectedExperienceLevel = value),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Teknik Özgüven (1-10)',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Teknik problemleri çözme konusundaki özgüvenini değerlendir',
+              'Önümüzdeki 1 yıl içinde ulaşmak istediğin ana kariyer hedefini seç',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.7),
               ),
             ),
             const SizedBox(height: 16),
-            Slider(
-              value: _technicalConfidence,
-              min: 1,
-              max: 10,
-              divisions: 9,
-              label: _technicalConfidence.round().toString(),
-              activeColor: theme.colorScheme.primary,
-              inactiveColor: theme.colorScheme.primary.withOpacity(0.2),
-              onChanged: (value) => setState(() => _technicalConfidence = value),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Düşük', style: theme.textTheme.bodySmall),
-                Text('Orta', style: theme.textTheme.bodySmall),
-                Text('Yüksek', style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTechnologiesTab(ThemeData theme) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildMultiInfoCard(
-            theme,
-            title: 'Teknolojiler & Araçlar',
-            values: _selectedTechnologies,
-            icon: Icons.construction,
-            description: 'Bildiğin teknolojiler, diller ve araçlar',
-          ),
-          const SizedBox(height: 16),
-          _buildInfoCard(
-            theme,
-            title: 'Proje Deneyimi',
-            value: _projectExperience?.isNotEmpty == true ? _projectExperience! : 'Belirtilmemiş',
-            icon: Icons.assignment_outlined,
-            description: 'Önemli projeler veya teknik deneyimler',
-          ),
-          if (_isEditMode) ...[
-            const SizedBox(height: 24),
-            Text(
-              'Teknolojiler & Araçlar',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            _buildMultiSelector(
+            _buildStatusSelector(
               context,
-              _technologiesOptions,
-              _selectedTechnologies,
-              (value) {
-                setState(() {
-                  if (_selectedTechnologies.contains(value)) {
-                    _selectedTechnologies.remove(value);
-                  } else {
-                    _selectedTechnologies.add(value);
-                  }
-                });
-              },
+              _oneYearGoalOptions,
+              _selectedOneYearGoal,
+              (value) => setState(() => _selectedOneYearGoal = value),
             ),
             const SizedBox(height: 24),
             Text(
-              'Proje Deneyimi',
+              '1 Yıllık Hedef Detayı',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+            Text(
+              'Bu hedefle ilgili spesifik detayları paylaşmak ister misin? (İsteğe bağlı)',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
             TextFormField(
-              initialValue: _projectExperience,
+              initialValue: _oneYearGoalDetail,
               decoration: InputDecoration(
-                hintText: 'Örn: 2 e-ticaret sitesi ve 1 mobil uygulama geliştirdim',
+                hintText: 'Hedefle ilgili detayları buraya yazın...',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding: const EdgeInsets.all(16),
               ),
-              maxLines: 5,
-              onChanged: (value) => setState(() => _projectExperience = value),
+              maxLines: 3,
+              onChanged: (value) => setState(() => _oneYearGoalDetail = value),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Profil Sloganı',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Kendini 1 cümleyle tanımlar mısın? (İsteğe bağlı)',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: _profileTagline,
+              decoration: InputDecoration(
+                hintText: 'Örn: Yenilikçi ve çözüm odaklı bir yazılım geliştiriciyim',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.all(16),
+              ),
+              maxLines: 2,
+              onChanged: (value) => setState(() => _profileTagline = value),
             ),
           ],
         ],
@@ -379,7 +308,80 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
     );
   }
 
-  Widget _buildSkillsTab(ThemeData theme) {
+  Widget _buildLongTermTab(ThemeData theme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildInfoCard(
+            theme,
+            title: '5 Yıllık Vizyon',
+            value: _selectedFiveYearVision ?? 'Belirtilmemiş',
+            icon: Icons.looks_5_rounded,
+            description: 'Uzun vadede kariyerinde nerede olmak istediğin',
+          ),
+          const SizedBox(height: 16),
+          if (_fiveYearVisionDetail?.isNotEmpty == true) ...[
+            _buildInfoCard(
+              theme,
+              title: 'Vizyon Detayı',
+              value: _fiveYearVisionDetail!,
+              icon: Icons.edit_note_rounded,
+              description: 'Uzun vadeli vizyonun hakkında ek detaylar',
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (_isEditMode) ...[
+            const SizedBox(height: 24),
+            Text(
+              '5 Yıllık Vizyon',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Uzun vadede, 5 yıl sonra kariyerinde nerede olmak istediğini seç',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildStatusSelector(
+              context,
+              _fiveYearVisionOptions,
+              _selectedFiveYearVision,
+              (value) => setState(() => _selectedFiveYearVision = value),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              '5 Yıllık Vizyon Detayı',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bu vizyonla ilgili detayları paylaşmak ister misin? (İsteğe bağlı)',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: _fiveYearVisionDetail,
+              decoration: InputDecoration(
+                hintText: 'Vizyonla ilgili detayları buraya yazın...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.all(16),
+              ),
+              maxLines: 3,
+              onChanged: (value) => setState(() => _fiveYearVisionDetail = value),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMotivationTab(ThemeData theme) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -387,28 +389,35 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
         children: [
           _buildMultiInfoCard(
             theme,
-            title: 'Teknik Beceriler',
-            values: _selectedSkills,
-            icon: Icons.engineering,
-            description: 'Sahip olduğun teknik ve mühendislik becerileri',
+            title: 'Motivasyon Kaynakları',
+            values: _selectedMotivationSources,
+            icon: Icons.favorite_rounded,
+            description: 'Kariyerinde seni en çok motive eden faktörler',
           ),
           if (_isEditMode) ...[
             const SizedBox(height: 24),
             Text(
-              'Teknik Beceriler',
+              'Motivasyon Kaynakları',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+            Text(
+              'Kariyerinde seni en çok motive eden kaynakları seç (Birden fazla seçebilirsin)',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(height: 16),
             _buildMultiSelector(
               context,
-              _skillsOptions,
-              _selectedSkills,
+              _motivationSourcesOptions,
+              _selectedMotivationSources,
               (value) {
                 setState(() {
-                  if (_selectedSkills.contains(value)) {
-                    _selectedSkills.remove(value);
+                  if (_selectedMotivationSources.contains(value)) {
+                    _selectedMotivationSources.remove(value);
                   } else {
-                    _selectedSkills.add(value);
+                    _selectedMotivationSources.add(value);
                   }
                 });
               },
@@ -417,14 +426,6 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
         ],
       ),
     );
-  }
-
-  // Helper Methods
-  String _getTechnicalConfidenceText() {
-    final rating = _technicalConfidence.round();
-    if (rating <= 3) return 'Düşük (${rating}/10)';
-    if (rating <= 7) return 'Orta (${rating}/10)';
-    return 'Yüksek (${rating}/10)';
   }
 
   Widget _buildInfoCard(

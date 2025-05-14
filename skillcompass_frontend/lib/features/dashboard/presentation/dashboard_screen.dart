@@ -4,10 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
 import 'package:skillcompass_frontend/features/auth/presentation/login_screen.dart';
-import 'package:skillcompass_frontend/features/profile/presentation/identity_status_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/identity_status_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/technical_profile_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/technical_profile_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/learning_thinking_style_screen.dart';
-import 'package:skillcompass_frontend/features/profile/presentation/career_vision_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/career_vision_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/blockers_challenges_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/support_community_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/inner_obstacles_screen.dart';
@@ -161,13 +162,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {
         'title': 'Kimlik Durumu',
         'icon': Icons.person,
-        'route': const IdentityStatusScreen(),
+        'route': const IdentityStatusCardScreen(),
         'color': Colors.blue,
       },
       {
         'title': 'Teknik Profil',
         'icon': Icons.code,
-        'route': const TechnicalProfileScreen(),
+        'route': const TechnicalProfileCardScreen(),
         'color': Colors.green,
       },
       {
@@ -179,7 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {
         'title': 'Kariyer Vizyonu',
         'icon': Icons.work,
-        'route': const CareerVisionScreen(),
+        'route': const CareerVisionCardScreen(),
         'color': Colors.purple,
       },
       {

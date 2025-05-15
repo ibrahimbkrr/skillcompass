@@ -4,6 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'widgets/learning_style_header.dart';
+import 'widgets/learning_style_preference_card.dart';
+import 'widgets/learning_style_resources_card.dart';
+import 'widgets/learning_style_motivation_card.dart';
+import 'widgets/learning_style_barrier_card.dart';
+import 'widgets/learning_style_progress_actions.dart';
 
 class LearningThinkingStyleScreen extends StatefulWidget {
   const LearningThinkingStyleScreen({Key? key}) : super(key: key);
@@ -307,560 +313,141 @@ class _LearningThinkingStyleScreenState extends State<LearningThinkingStyleScree
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Üst Bilgi
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [mainBlue, gold],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Icon(Icons.menu_book_rounded, color: gold, size: 36),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Öğrenme Stilinizi Keşfedin',
-                                        style: GoogleFonts.inter(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 30,
-                                          color: mainBlue,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        semanticsLabel: 'Öğrenme Stili Kartı Başlığı',
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Bilişim dünyasında nasıl öğreniyorsunuz? Tercihlerinizi paylaşın, size özel bir öğrenme planı oluşturalım.',
-                                        style: GoogleFonts.inter(fontSize: 16, color: cloudGrey),
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                        semanticsLabel: 'Öğrenme Stili Kartı Açıklama',
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: Icon(Icons.explore, color: gold, size: 28),
-                                  onPressed: () => _showGuide(context),
-                                  tooltip: 'Rehber',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              'Öğrenme yolculuğunuzu şekillendirmek için ilk adımı atın!',
-                              style: GoogleFonts.inter(fontSize: 15, color: mainBlue, fontWeight: FontWeight.w600),
+                            LearningStyleHeader(
+                              mainBlue: mainBlue,
+                              gold: gold,
+                              cloudGrey: cloudGrey,
+                              onGuide: () => _showGuide(context),
                             ),
                             const SizedBox(height: 18),
-                            // Soru 1: Öğrenme Tercihi
                             _AnimatedQuestionCard(
                               completed: (_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty,
                               borderColor: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) ? gold : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Bilişim konularını öğrenirken en çok hangi yöntemi tercih edersiniz?',
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: _responsiveFont(context, 18),
-                                      color: mainBlue,
-                                    ),
-                                    semanticsLabel: 'Öğrenme tercihi başlığı',
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: _preferenceOptions.map((option) {
-                                      final selected = _selectedPreference == option;
-                                      return ChoiceChip(
-                                        label: Text(
-                                          option,
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.w500,
-                                            color: selected ? Colors.white : mainBlue,
-                                          ),
-                                        ),
-                                        selected: selected,
-                                        backgroundColor: Colors.white,
-                                        selectedColor: gold,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          side: BorderSide(color: selected ? gold : cloudGrey, width: 1.5),
-                                        ),
-                                        onSelected: (val) {
-                                          setState(() {
-                                            if (option == 'Diğer') {
-                                              _showCustomPreferenceInput = val;
-                                              if (!val) _customPreferenceController.clear();
-                                            } else {
-                                              if (val) {
-                                                _selectedPreference = option;
-                                                _showCustomPreferenceInput = false;
-                                                _customPreferenceController.clear();
-                                              } else {
-                                                _selectedPreference = null;
-                                              }
-                                            }
-                                          });
-                                        },
-                                        avatar: option == 'Diğer' ? const Icon(Icons.add, size: 18, color: gold) : null,
-                                      );
-                                    }).toList(),
-                                  ),
-                                  if (_showCustomPreferenceInput) ...[
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextField(
-                                            controller: _customPreferenceController,
-                                            maxLength: 30,
-                                            style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: _responsiveFont(context, 15),
-                                              color: mainBlue,
-                                            ),
-                                            decoration: InputDecoration(
-                                              hintText: 'Kendi yönteminizi yazın',
-                                              counterText: '',
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: const BorderSide(color: gold, width: 2),
-                                              ),
-                                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                              hintStyle: GoogleFonts.inter(color: lightBlue),
-                                            ),
-                                            onChanged: (val) => setState(() => _customPreference = val),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton(
-                                          onPressed: _customPreference.trim().isNotEmpty
-                                              ? () {
-                                                  setState(() {
-                                                    _selectedPreference = '';
-                                                  });
-                                                }
-                                              : null,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: gold,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                          ),
-                                          child: const Text('Ekle'),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Size en uygun öğrenme yöntemini seçin. Bu, önerilerimizi kişiselleştirecek.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: _responsiveFont(context, 14),
-                                      color: lightBlue,
-                                    ),
-                                    semanticsLabel: 'Öğrenme tercihi ipucu',
-                                  ),
-                                ],
+                              child: LearningStylePreferenceCard(
+                                preferenceOptions: _preferenceOptions,
+                                selectedPreference: _selectedPreference,
+                                showCustomPreferenceInput: _showCustomPreferenceInput,
+                                customPreferenceController: _customPreferenceController,
+                                customPreference: _customPreference,
+                                mainBlue: mainBlue,
+                                gold: gold,
+                                cloudGrey: cloudGrey,
+                                lightBlue: lightBlue,
+                                onOptionSelected: (option, val) {
+                                  setState(() {
+                                    if (option == 'Diğer') {
+                                      _showCustomPreferenceInput = val;
+                                      if (!val) _customPreferenceController.clear();
+                                    } else {
+                                      if (val) {
+                                        _selectedPreference = option;
+                                        _showCustomPreferenceInput = false;
+                                        _customPreferenceController.clear();
+                                      } else {
+                                        _selectedPreference = null;
+                                      }
+                                    }
+                                  });
+                                },
+                                onCustomChanged: (val) => setState(() => _customPreference = val),
+                                onCustomAdd: () {
+                                  setState(() {
+                                    _selectedPreference = '';
+                                  });
+                                },
                               ),
                             ),
-                            // Soru 2: Kaynaklar
+                            const SizedBox(height: 14),
                             _AnimatedQuestionCard(
                               completed: _selectedResources.isNotEmpty,
                               borderColor: _selectedResources.isNotEmpty ? gold : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Hangi kaynakları öğrenme sürecinizde sık kullanıyorsunuz?',
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: _responsiveFont(context, 18),
-                                            color: mainBlue,
-                                          ),
-                                          semanticsLabel: 'Öğrenme kaynakları başlığı',
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '${_selectedResources.length}/3',
-                                        style: GoogleFonts.inter(
-                                          fontSize: _responsiveFont(context, 14),
-                                          color: gold,
-                                        ),
-                                        semanticsLabel: 'Seçilen kaynak sayısı',
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: _resourceOptions.map((option) {
-                                      final selected = _selectedResources.contains(option);
-                                      return ChoiceChip(
-                                        label: Text(
-                                          option,
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.w500,
-                                            color: selected ? Colors.white : mainBlue,
-                                          ),
-                                        ),
-                                        selected: selected,
-                                        backgroundColor: Colors.white,
-                                        selectedColor: gold,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          side: BorderSide(color: selected ? gold : cloudGrey, width: 1.5),
-                                        ),
-                                        onSelected: (val) {
-                                          setState(() {
-                                            if (option == 'Diğer') {
-                                              _showCustomResourceInput = val;
-                                              if (!val) _customResourceController.clear();
-                                            } else {
-                                              if (val && _selectedResources.length < 3) {
-                                                _selectedResources.add(option);
-                                              } else if (!val) {
-                                                _selectedResources.remove(option);
-                                              }
-                                            }
-                                          });
-                                        },
-                                        avatar: option == 'Diğer' ? const Icon(Icons.add, size: 18, color: gold) : null,
-                                      );
-                                    }).toList(),
-                                  ),
-                                  if (_showCustomResourceInput) ...[
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextField(
-                                            controller: _customResourceController,
-                                            maxLength: 30,
-                                            style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: _responsiveFont(context, 15),
-                                              color: mainBlue,
-                                            ),
-                                            decoration: InputDecoration(
-                                              hintText: 'Kendi kaynağınızı yazın',
-                                              counterText: '',
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: const BorderSide(color: gold, width: 2),
-                                              ),
-                                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                              hintStyle: GoogleFonts.inter(color: lightBlue),
-                                            ),
-                                            onChanged: (val) => setState(() => _customResource = val),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton(
-                                          onPressed: _customResource.trim().isNotEmpty && _selectedResources.length < 3
-                                              ? () {
-                                                  setState(() {
-                                                    _selectedResources.add(_customResource.trim());
-                                                    _customResourceController.clear();
-                                                    _customResource = '';
-                                                    _showCustomResourceInput = false;
-                                                  });
-                                                }
-                                              : null,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: gold,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                          ),
-                                          child: const Text('Ekle'),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'En fazla 3 kaynağı seçin. Bu, öğrenme önerilerimizi şekillendirecek.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: _responsiveFont(context, 14),
-                                      color: lightBlue,
-                                    ),
-                                    semanticsLabel: 'Öğrenme kaynakları ipucu',
-                                  ),
-                                ],
+                              child: LearningStyleResourcesCard(
+                                resourceOptions: _resourceOptions,
+                                selectedResources: _selectedResources,
+                                showCustomResourceInput: _showCustomResourceInput,
+                                customResourceController: _customResourceController,
+                                customResource: _customResource,
+                                mainBlue: mainBlue,
+                                gold: gold,
+                                cloudGrey: cloudGrey,
+                                lightBlue: lightBlue,
+                                onOptionSelected: (option, val) {
+                                  setState(() {
+                                    if (option == 'Diğer') {
+                                      _showCustomResourceInput = val;
+                                      if (!val) _customResourceController.clear();
+                                    } else {
+                                      if (val && _selectedResources.length < 3) {
+                                        _selectedResources.add(option);
+                                      } else if (!val) {
+                                        _selectedResources.remove(option);
+                                      }
+                                    }
+                                  });
+                                },
+                                onCustomChanged: (val) => setState(() => _customResource = val),
+                                onCustomAdd: () {
+                                  setState(() {
+                                    _selectedResources.add(_customResource.trim());
+                                    _customResourceController.clear();
+                                    _customResource = '';
+                                    _showCustomResourceInput = false;
+                                  });
+                                },
                               ),
                             ),
-                            // Soru 3: Motivasyon
+                            const SizedBox(height: 14),
                             _AnimatedQuestionCard(
                               completed: _motivation.trim().length >= 10,
                               borderColor: _motivation.trim().length >= 10 ? gold : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Bilişim öğrenirken sizi en çok ne motive eder?',
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: _responsiveFont(context, 18),
-                                            color: mainBlue,
-                                          ),
-                                          semanticsLabel: 'Öğrenme motivasyonu başlığı',
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: _showMotivationInspire,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: mainBlue.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Icon(Icons.lightbulb, color: gold, size: 24, semanticLabel: 'İlham önerisi göster'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: _motivationController,
-                                    maxLength: 100,
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: _responsiveFont(context, 16),
-                                      color: mainBlue,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText: 'Örneğin: Yeni teknolojiler keşfetmek ve projeler geliştirmek.',
-                                      counterText: '',
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: gold, width: 2),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      hintStyle: GoogleFonts.inter(color: lightBlue),
-                                    ),
-                                    onChanged: (val) => setState(() => _motivation = val),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Sizi motive eden şeyleri düşünün. Bu, öğrenme stratejinizi güçlendirecek.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: _responsiveFont(context, 14),
-                                      color: lightBlue,
-                                    ),
-                                    semanticsLabel: 'Öğrenme motivasyonu ipucu',
-                                  ),
-                                ],
+                              child: LearningStyleMotivationCard(
+                                motivationController: _motivationController,
+                                motivation: _motivation,
+                                showInspirePopup: _showMotivationInspirePopup,
+                                inspireIndex: _motivationInspireIndex,
+                                inspireList: _motivationInspireList,
+                                mainBlue: mainBlue,
+                                gold: gold,
+                                cloudGrey: cloudGrey,
+                                lightBlue: lightBlue,
+                                onInspireTap: _showMotivationInspire,
+                                onChanged: (val) => setState(() => _motivation = val),
                               ),
                             ),
-                            // Soru 4: Engeller
+                            const SizedBox(height: 14),
                             _AnimatedQuestionCard(
                               completed: _barrier.trim().length >= 10,
                               borderColor: _barrier.trim().length >= 10 ? gold : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Öğrenme sürecinizde en büyük engeliniz nedir?',
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: _responsiveFont(context, 18),
-                                            color: mainBlue,
-                                          ),
-                                          semanticsLabel: 'Öğrenme engelleri başlığı',
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: _showBarrierInspire,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: mainBlue.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Icon(Icons.lightbulb, color: gold, size: 24, semanticLabel: 'İlham önerisi göster'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: _barrierController,
-                                    maxLength: 100,
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: _responsiveFont(context, 16),
-                                      color: mainBlue,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText: 'Örneğin: Zaman yönetimi veya karmaşık konular.',
-                                      counterText: '',
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: gold, width: 2),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      hintStyle: GoogleFonts.inter(color: lightBlue),
-                                    ),
-                                    onChanged: (val) => setState(() => _barrier = val),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Engellerinizi dürüstçe paylaşın. Size uygun çözümler önereceğiz.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: _responsiveFont(context, 14),
-                                      color: lightBlue,
-                                    ),
-                                    semanticsLabel: 'Öğrenme engelleri ipucu',
-                                  ),
-                                ],
+                              child: LearningStyleBarrierCard(
+                                barrierController: _barrierController,
+                                barrier: _barrier,
+                                showInspirePopup: _showBarrierInspirePopup,
+                                inspireIndex: _barrierInspireIndex,
+                                inspireList: _barrierInspireList,
+                                mainBlue: mainBlue,
+                                gold: gold,
+                                cloudGrey: cloudGrey,
+                                lightBlue: lightBlue,
+                                onInspireTap: _showBarrierInspire,
+                                onChanged: (val) => setState(() => _barrier = val),
                               ),
                             ),
                             const SizedBox(height: 18),
-                            // Progress bar ve butonlar
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: 7,
-                                        decoration: BoxDecoration(
-                                          color: cloudGrey,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                      AnimatedContainer(
-                                        duration: const Duration(milliseconds: 400),
-                                        height: 7,
-                                        width: (cardWidth - 40) * progress,
-                                        decoration: BoxDecoration(
-                                          color: mainBlue,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Icon(Icons.explore, color: mainBlue, size: 20),
-                                const SizedBox(width: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: mainBlue,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '4/7',
-                                    style: GoogleFonts.inter(
-                                      fontSize: _responsiveFont(context, 14),
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
-                                        _selectedResources.isNotEmpty &&
-                                        _motivation.trim().length >= 10 &&
-                                        _barrier.trim().length >= 10
-                                    ? _saveData
-                                    : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
-                                          _selectedResources.isNotEmpty &&
-                                          _motivation.trim().length >= 10 &&
-                                          _barrier.trim().length >= 10
-                                      ? accentCoral
-                                      : cloudGrey,
-                                  foregroundColor: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
-                                          _selectedResources.isNotEmpty &&
-                                          _motivation.trim().length >= 10 &&
-                                          _barrier.trim().length >= 10
-                                      ? Colors.white
-                                      : darkGrey,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  textStyle: GoogleFonts.inter(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: _responsiveFont(context, 18),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: const Text('Kaydet ve İlerle'),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Öğrenme stilinizi tanımlayarak yolculuğunuzu güçlendirin.',
-                              style: GoogleFonts.inter(
-                                fontSize: _responsiveFont(context, 14),
-                                color: lightBlue,
-                              ),
-                              semanticsLabel: 'Kart tamamlama ipucu',
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.arrow_back_ios_new_rounded,
-                                  color: lightBlue,
-                                  size: 24,
-                                ),
-                                onPressed: () => Navigator.of(context).maybePop(),
-                                tooltip: 'Geri',
-                              ),
+                            LearningStyleProgressActions(
+                              progress: (cardWidth - 40) * (_completedCount / 4),
+                              completedCount: _completedCount,
+                              totalCount: 4,
+                              mainBlue: mainBlue,
+                              accentCoral: accentCoral,
+                              cloudGrey: cloudGrey,
+                              darkGrey: darkGrey,
+                              lightBlue: lightBlue,
+                              isSaveEnabled: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
+                                _selectedResources.isNotEmpty &&
+                                _motivation.trim().length >= 10 &&
+                                _barrier.trim().length >= 10,
+                              onSave: _saveData,
+                              onBack: () => Navigator.of(context).maybePop(),
                             ),
                           ],
                         ),

@@ -6,7 +6,6 @@ import 'package:skillcompass_frontend/features/profile/presentation/technical_pr
 import 'package:skillcompass_frontend/features/profile/presentation/technical_profile_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/learning_thinking_style_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/career_vision_card_screen.dart';
-import 'package:skillcompass_frontend/features/profile/presentation/blockers_challenges_screen_modernized.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/inner_obstacles_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/support_community_screen.dart';
 import 'package:skillcompass_frontend/features/skill_analysis/skill_radar_chart_screen.dart';
@@ -15,6 +14,7 @@ import 'package:skillcompass_frontend/features/profile/services/profile_analytic
 import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
 import 'package:skillcompass_frontend/shared/widgets/error_message.dart';
 import 'package:skillcompass_frontend/shared/widgets/page_transition.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/project_experience_screen.dart';
 
 class ProfileDashboardScreen extends StatefulWidget {
   const ProfileDashboardScreen({super.key});
@@ -164,14 +164,14 @@ class _ProfileDashboardScreenState extends State<ProfileDashboardScreen> {
                             ),
                             _buildProfileCard(
                               context,
-                              title: 'Engeller ve Zorluklar',
-                              icon: Icons.block,
-                              color: Colors.red,
+                              title: 'Projeler',
+                              icon: Icons.folder_special,
+                              color: Colors.amber,
                               onTap: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const BlockersChallengesScreenModernized(),
+                                    builder: (context) => const ProjectExperienceScreen(),
                                   ),
                                 );
                               },

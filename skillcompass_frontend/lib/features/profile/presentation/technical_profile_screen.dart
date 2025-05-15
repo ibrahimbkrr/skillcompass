@@ -10,6 +10,10 @@ import 'package:skillcompass_frontend/shared/widgets/input_decoration_helper.dar
 import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
 import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
 import 'package:skillcompass_frontend/features/profile/services/profile_service.dart';
+import 'widgets/technical_profile_info_card.dart';
+import 'widgets/technical_profile_multi_info_card.dart';
+import 'widgets/technical_profile_status_selector.dart';
+import 'widgets/technical_profile_multi_selector.dart';
 
 class TechnicalProfileScreen extends StatefulWidget {
   const TechnicalProfileScreen({Key? key}) : super(key: key);
@@ -230,24 +234,24 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInfoCard(
-            theme,
+          TechnicalProfileInfoCard(
+            theme: theme,
             title: 'Ana Uzmanlık Alanı',
             value: _selectedPrimaryField ?? 'Belirtilmemiş',
             icon: Icons.code,
             description: 'Temel uzmanlık ve odak alanın',
           ),
           const SizedBox(height: 16),
-          _buildInfoCard(
-            theme,
+          TechnicalProfileInfoCard(
+            theme: theme,
             title: 'Deneyim Seviyesi',
             value: _selectedExperienceLevel ?? 'Belirtilmemiş',
             icon: Icons.timeline_outlined,
             description: 'Mevcut teknik deneyim seviyesi',
           ),
           const SizedBox(height: 16),
-          _buildInfoCard(
-            theme,
+          TechnicalProfileInfoCard(
+            theme: theme,
             title: 'Teknik Özgüven',
             value: _getTechnicalConfidenceText(),
             icon: Icons.insights,
@@ -260,11 +264,11 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _buildStatusSelector(
-              context,
-              _primaryFieldOptions,
-              _selectedPrimaryField,
-              (value) => setState(() => _selectedPrimaryField = value),
+            TechnicalProfileStatusSelector(
+              options: _primaryFieldOptions,
+              selectedValue: _selectedPrimaryField,
+              onChanged: (value) => setState(() => _selectedPrimaryField = value),
+              isSaving: _isSaving,
             ),
             const SizedBox(height: 24),
             Text(
@@ -272,11 +276,11 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _buildStatusSelector(
-              context,
-              _experienceLevelOptions,
-              _selectedExperienceLevel,
-              (value) => setState(() => _selectedExperienceLevel = value),
+            TechnicalProfileStatusSelector(
+              options: _experienceLevelOptions,
+              selectedValue: _selectedExperienceLevel,
+              onChanged: (value) => setState(() => _selectedExperienceLevel = value),
+              isSaving: _isSaving,
             ),
             const SizedBox(height: 24),
             Text(
@@ -321,16 +325,16 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildMultiInfoCard(
-            theme,
+          TechnicalProfileMultiInfoCard(
+            theme: theme,
             title: 'Teknolojiler & Araçlar',
             values: _selectedTechnologies,
             icon: Icons.construction,
             description: 'Bildiğin teknolojiler, diller ve araçlar',
           ),
           const SizedBox(height: 16),
-          _buildInfoCard(
-            theme,
+          TechnicalProfileInfoCard(
+            theme: theme,
             title: 'Proje Deneyimi',
             value: _projectExperience?.isNotEmpty == true ? _projectExperience! : 'Belirtilmemiş',
             icon: Icons.assignment_outlined,
@@ -343,11 +347,10 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _buildMultiSelector(
-              context,
-              _technologiesOptions,
-              _selectedTechnologies,
-              (value) {
+            TechnicalProfileMultiSelector(
+              options: _technologiesOptions,
+              selectedValues: _selectedTechnologies,
+              onChanged: (value) {
                 setState(() {
                   if (_selectedTechnologies.contains(value)) {
                     _selectedTechnologies.remove(value);
@@ -356,6 +359,7 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
                   }
                 });
               },
+              isSaving: _isSaving,
             ),
             const SizedBox(height: 24),
             Text(
@@ -385,8 +389,8 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildMultiInfoCard(
-            theme,
+          TechnicalProfileMultiInfoCard(
+            theme: theme,
             title: 'Teknik Beceriler',
             values: _selectedSkills,
             icon: Icons.engineering,
@@ -399,11 +403,10 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _buildMultiSelector(
-              context,
-              _skillsOptions,
-              _selectedSkills,
-              (value) {
+            TechnicalProfileMultiSelector(
+              options: _skillsOptions,
+              selectedValues: _selectedSkills,
+              onChanged: (value) {
                 setState(() {
                   if (_selectedSkills.contains(value)) {
                     _selectedSkills.remove(value);
@@ -412,6 +415,7 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
                   }
                 });
               },
+              isSaving: _isSaving,
             ),
           ],
         ],
@@ -425,242 +429,5 @@ class _TechnicalProfileScreenState extends State<TechnicalProfileScreen> with Si
     if (rating <= 3) return 'Düşük (${rating}/10)';
     if (rating <= 7) return 'Orta (${rating}/10)';
     return 'Yüksek (${rating}/10)';
-  }
-
-  Widget _buildInfoCard(
-    ThemeData theme, {
-    required String title,
-    required String value,
-    required IconData icon,
-    required String description,
-  }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: theme.colorScheme.primary,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        description,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              value,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: value == 'Belirtilmemiş'
-                    ? theme.colorScheme.onSurface.withOpacity(0.5)
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMultiInfoCard(
-    ThemeData theme, {
-    required String title,
-    required List<String> values,
-    required IconData icon,
-    required String description,
-  }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: theme.colorScheme.primary,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        description,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            values.isEmpty
-                ? Text(
-                    'Belirtilmemiş',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.5),
-                    ),
-                  )
-                : Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: values.map((item) {
-                      return Chip(
-                        label: Text(item),
-                        backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                        labelStyle: TextStyle(color: theme.colorScheme.primary),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                      );
-                    }).toList(),
-                  ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusSelector(
-    BuildContext context,
-    List<String> options,
-    String? selectedValue,
-    Function(String?) onChanged,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ...options.map((option) {
-          final isSelected = selectedValue == option;
-          return Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(bottom: 8),
-            color: isSelected
-                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                : Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                width: isSelected ? 2 : 1,
-              ),
-            ),
-            child: RadioListTile<String>(
-              title: Text(
-                option,
-                style: TextStyle(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 15,
-                ),
-              ),
-              value: option,
-              groupValue: selectedValue,
-              onChanged: !_isSaving ? onChanged : null,
-              activeColor: Theme.of(context).colorScheme.primary,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          );
-        }).toList(),
-      ],
-    );
-  }
-
-  Widget _buildMultiSelector(
-    BuildContext context,
-    List<String> options,
-    List<String> selectedValues,
-    Function(String) onChanged,
-  ) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: options.map((option) {
-        final isSelected = selectedValues.contains(option);
-        return FilterChip(
-          label: Text(
-            option,
-            style: TextStyle(
-              color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-          selected: isSelected,
-          onSelected: (selected) {
-            if (_isSaving) return;
-            onChanged(option);
-          },
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-          checkmarkColor: Theme.of(context).colorScheme.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.outline.withOpacity(0.5),
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          elevation: isSelected ? 2 : 0,
-        );
-      }).toList(),
-    );
   }
 } 

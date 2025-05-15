@@ -4,6 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';
+import 'widgets/identity_status_header.dart';
+import 'widgets/animated_question_card.dart';
+import 'widgets/identity_story_card.dart';
+import 'widgets/identity_motivation_card.dart';
+import 'widgets/identity_impact_card.dart';
+import 'widgets/identity_clarity_card.dart';
+import 'widgets/identity_status_actions.dart';
 
 class IdentityStatusCardScreen extends StatefulWidget {
   const IdentityStatusCardScreen({super.key});
@@ -299,404 +306,92 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Progress bar
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: 7,
-                                        decoration: BoxDecoration(
-                                          color: cloudGrey,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                      AnimatedContainer(
-                                        duration: const Duration(milliseconds: 400),
-                                        height: 7,
-                                        width: (cardWidth - 40) * progress,
-                                        decoration: BoxDecoration(
-                                          color: mainBlue,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Icon(Icons.explore, color: mainBlue, size: 20),
-                                const SizedBox(width: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: mainBlue,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '$completedSteps/$totalSteps',
-                                    style: GoogleFonts.inter(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
+                            IdentityStatusHeader(
+                              completedSteps: completedSteps,
+                              totalSteps: totalSteps,
+                              progress: progress,
+                              mainBlue: mainBlue,
+                              cloudGrey: cloudGrey,
+                              accentBlue: accentBlue,
+                              cardWidth: cardWidth,
                             ),
                             const SizedBox(height: 18),
-                            // Simge + Başlık + Açıklama + Rehber
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [mainBlue, accentCoral],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      Icon(Icons.explore, color: Colors.white, size: 36),
-                                      Positioned(
-                                        bottom: 8,
-                                        right: 8,
-                                        child: Icon(Icons.navigation, color: accentCoral, size: 18),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Kimsiniz ve Neredesiniz?',
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 30,
-                                            color: mainBlue,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Bilişim dünyasındaki yerinizi tarif edin. Kendinizi nasıl görüyorsunuz, neyi temsil ediyorsunuz? Bu, kariyer yolculuğunuzun başlangıç noktası.',
-                                        style: GoogleFonts.inter(fontSize: 16, color: darkGrey),
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.tips_and_updates_rounded, color: mainBlue, size: 24),
-                                  onPressed: () => _showGuide(context),
-                                  tooltip: 'Rehber',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text('Hikayenizi anlatın, yolculuğunuzu birlikte şekillendirelim!',
-                              style: GoogleFonts.inter(fontSize: 15, color: mainBlue, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 18),
-                            // Soru 1: Bilişim Hikayesi
-                            _AnimatedQuestionCard(
+                            AnimatedQuestionCard(
                               completed: _storyController.text.trim().length >= 10,
                               borderColor: _storyController.text.trim().length >= 10 ? mainBlue : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text('Kendinizi bir cümleyle nasıl anlatırsınız?',
-                                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18, color: mainBlue)),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: _showInspirePopup,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: mainBlue.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: const Icon(Icons.auto_awesome, color: mainBlue, size: 20),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: _storyController,
-                                    maxLength: 100,
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 16, color: mainBlue),
-                                    decoration: InputDecoration(
-                                      hintText: 'Örneğin: Kullanıcı odaklı mobil uygulamalar geliştiren bir Flutter tutkunu.',
-                                      counterText: '',
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: accentCoral, width: 2),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      hintStyle: GoogleFonts.inter(color: lightBlue),
-                                    ),
-                                    keyboardType: TextInputType.text,
-                                    textInputAction: TextInputAction.next,
-                                    onChanged: (_) {
-                                      setState(() {});
-                                      _updateCompletedCount();
-                                    },
-                                    autofocus: false,
-                                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                                    validator: (v) => v == null || v.trim().length < 10 ? 'Lütfen kendinizi tarif edin.' : null,
-                                  ),
-                                  if (_showInspire && _inspireText != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8.0),
-                                      child: AnimatedOpacity(
-                                        opacity: _showInspire ? 1 : 0,
-                                        duration: const Duration(milliseconds: 300),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: mainBlue.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(_inspireText!, style: GoogleFonts.inter(fontSize: 14, color: mainBlue)),
-                                        ),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 6),
-                                  Text('Unvanınızdan ziyade tutkunuzu ve vizyonunuzu düşünün. Sizi ne tanımlar?',
-                                    style: GoogleFonts.inter(fontSize: 14, color: darkGrey)),
-                                ],
+                              child: IdentityStoryCard(
+                                storyController: _storyController,
+                                showInspire: _showInspire,
+                                inspireText: _inspireText,
+                                onInspireTap: _showInspirePopup,
+                                onChanged: (_) {
+                                  setState(() {});
+                                  _updateCompletedCount();
+                                },
                               ),
                             ),
                             const SizedBox(height: 14),
-                            // Soru 2: Motivasyon
-                            _AnimatedQuestionCard(
+                            AnimatedQuestionCard(
                               completed: _selectedMotivations.isNotEmpty || (_showCustomMotivation && _customMotivationController.text.trim().isNotEmpty),
                               borderColor: (_selectedMotivations.isNotEmpty || (_showCustomMotivation && _customMotivationController.text.trim().isNotEmpty)) ? mainBlue : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text('Sizi motive eden nedir?',
-                                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18, color: mainBlue)),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text('${_selectedMotivations.length + (_showCustomMotivation && _customMotivationController.text.trim().isNotEmpty ? 1 : 0)}/3',
-                                        style: GoogleFonts.inter(fontSize: 14, color: accentBlue)),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: _motivationOptions.map((motivation) {
-                                      final selected = _selectedMotivations.contains(motivation);
-                                      return ChoiceChip(
-                                        label: Text(motivation, style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: selected ? Colors.white : mainBlue)),
-                                        selected: selected,
-                                        backgroundColor: Colors.white,
-                                        selectedColor: accentCoral,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          side: BorderSide(color: selected ? accentCoral : cloudGrey, width: 1.5),
-                                        ),
-                                        onSelected: (val) {
-                                          setState(() {
-                                            if (motivation == 'Diğer') {
-                                              _showCustomMotivation = val;
-                                              if (!val) _customMotivationController.clear();
-                                            } else {
-                                              if (val && _selectedMotivations.length < 3) {
-                                                _selectedMotivations.add(motivation);
-                                              } else if (!val) {
-                                                _selectedMotivations.remove(motivation);
-                                              }
-                                            }
-                                            _updateCompletedCount();
-                                          });
-                                        },
-                                        avatar: motivation == 'Diğer' ? const Icon(Icons.add, size: 18, color: accentCoral) : null,
-                                      );
-                                    }).toList(),
-                                  ),
-                                  if (_showCustomMotivation) ...[
-                                    const SizedBox(height: 8),
-                                    TextFormField(
-                                      controller: _customMotivationController,
-                                      maxLength: 30,
-                                      style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 15, color: mainBlue),
-                                      decoration: InputDecoration(
-                                        hintText: 'Kendi motivasyonunuzu yazın',
-                                        counterText: '',
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: accentCoral, width: 2),
-                                        ),
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                        hintStyle: GoogleFonts.inter(color: lightBlue),
-                                      ),
-                                      keyboardType: TextInputType.text,
-                                      textInputAction: TextInputAction.done,
-                                      onChanged: (_) {
-                                        setState(() {});
-                                        _updateCompletedCount();
-                                      },
-                                    ),
-                                  ],
-                                  const SizedBox(height: 6),
-                                  Text('Sizi sabah yataktan kaldıran şey nedir? Birden fazla seçebilirsiniz.',
-                                    style: GoogleFonts.inter(fontSize: 14, color: darkGrey)),
-                                ],
+                              child: IdentityMotivationCard(
+                                motivationOptions: _motivationOptions,
+                                selectedMotivations: _selectedMotivations,
+                                showCustomMotivation: _showCustomMotivation,
+                                customMotivationController: _customMotivationController,
+                                onMotivationSelected: (motivation, val) {
+                                  setState(() {
+                                    if (motivation == 'Diğer') {
+                                      _showCustomMotivation = val;
+                                      if (!val) _customMotivationController.clear();
+                                    } else {
+                                      if (val && _selectedMotivations.length < 3) {
+                                        _selectedMotivations.add(motivation);
+                                      } else if (!val) {
+                                        _selectedMotivations.remove(motivation);
+                                      }
+                                    }
+                                    _updateCompletedCount();
+                                  });
+                                },
+                                onCustomMotivationChanged: (_) {
+                                  setState(() {});
+                                  _updateCompletedCount();
+                                },
                               ),
                             ),
                             const SizedBox(height: 14),
-                            // Soru 3: Etki Alanı
-                            _AnimatedQuestionCard(
+                            AnimatedQuestionCard(
                               completed: _selectedImpact != null,
                               borderColor: _selectedImpact != null ? mainBlue : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('En büyük etkinizi nerede yaratıyorsunuz?',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18, color: mainBlue)),
-                                  const SizedBox(height: 8),
-                                  DropdownButtonFormField<String>(
-                                    isExpanded: true,
-                                    value: _selectedImpact,
-                                    items: [
-                                      const DropdownMenuItem<String>(value: null, child: Text('Seçiniz', maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                      ..._impactOptions.map((e) => DropdownMenuItem<String>(
-                                        value: e,
-                                        child: Row(
-                                          children: [
-                                            Icon(_impactIcons[e], color: mainBlue, size: 18),
-                                            const SizedBox(width: 8),
-                                            Expanded(child: Text(e, style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: mainBlue), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                                          ],
-                                        ),
-                                      )),
-                                    ],
-                                    onChanged: (val) => setState(() {
-                                      _selectedImpact = val;
-                                      _updateCompletedCount();
-                                    }),
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: mainBlue, width: 2),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    ),
-                                    validator: (v) => v == null ? 'Lütfen bir etki alanı seçin.' : null,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text('Şu anda veya gelecekte en çok katkı sağladığınız alanı seçin.',
-                                    style: GoogleFonts.inter(fontSize: 14, color: darkGrey)),
-                                ],
+                              child: IdentityImpactCard(
+                                impactOptions: _impactOptions,
+                                impactIcons: _impactIcons,
+                                selectedImpact: _selectedImpact,
+                                onChanged: (val) => setState(() {
+                                  _selectedImpact = val;
+                                  _updateCompletedCount();
+                                }),
                               ),
                             ),
                             const SizedBox(height: 14),
-                            // Soru 4: Netlik Ölçümü
-                            _AnimatedQuestionCard(
+                            AnimatedQuestionCard(
                               completed: true,
                               borderColor: mainBlue,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Kariyer kimliğiniz ne kadar net?',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 18, color: mainBlue)),
-                                  const SizedBox(height: 8),
-                                  SliderTheme(
-                                    data: SliderTheme.of(context).copyWith(
-                                      activeTrackColor: mainBlue,
-                                      inactiveTrackColor: cloudGrey,
-                                      thumbColor: accentCoral,
-                                      overlayColor: accentCoral.withOpacity(0.2),
-                                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-                                    ),
-                                    child: Slider(
-                                      value: _clarity,
-                                      min: 0,
-                                      max: 100,
-                                      divisions: 100,
-                                      onChanged: (val) => setState(() => _clarity = val),
-                                    ),
-                                  ),
-                                  Text(_clarityText, style: GoogleFonts.inter(fontSize: 14, color: darkGrey)),
-                                  const SizedBox(height: 6),
-                                  Text('Ne kadar net olduğunuzu dürüstçe değerlendirin. Bu, size en uygun önerileri sunmamızı sağlayacak.',
-                                    style: GoogleFonts.inter(fontSize: 14, color: darkGrey)),
-                                ],
+                              child: IdentityClarityCard(
+                                clarity: _clarity,
+                                onChanged: (val) => setState(() => _clarity = val),
+                                clarityText: _clarityText,
                               ),
                             ),
                             const SizedBox(height: 18),
-                            if (_errorText != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
-                                child: Text(_errorText!, style: GoogleFonts.inter(color: Colors.red, fontSize: 14)),
-                              ),
-                            // Kaydet ve İlerle Butonu
-                            AnimatedScale(
-                              scale: _isSaving ? 0.95 : 1.0,
-                              duration: const Duration(milliseconds: 200),
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: 52,
-                                child: ElevatedButton(
-                                  onPressed: _isFormValid && !_isSaving ? _saveData : null,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _isFormValid ? accentCoral : cloudGrey,
-                                    foregroundColor: _isFormValid ? Colors.white : darkGrey,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
-                                    elevation: 0,
-                                  ),
-                                  child: _isSaving
-                                      ? const SizedBox(
-                                          width: 28,
-                                          height: 28,
-                                          child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
-                                        )
-                                      : _showSuccess
-                                          ? Icon(Icons.check_circle, color: successGreen, size: 28)
-                                          : const Text('Kaydet ve İlerle'),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text('Tüm sorulara yanıt vererek en iyi sonucu alın.', style: GoogleFonts.inter(fontSize: 14, color: lightBlue)),
-                            const SizedBox(height: 8),
-                            // Geri Butonu
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: IconButton(
-                                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: lightBlue, size: 24),
-                                onPressed: () => Navigator.of(context).maybePop(),
-                                tooltip: 'Geri',
-                              ),
+                            IdentityStatusActions(
+                              isFormValid: _isFormValid,
+                              isSaving: _isSaving,
+                              showSuccess: _showSuccess,
+                              errorText: _errorText,
+                              onSave: _saveData,
+                              onBack: () => Navigator.of(context).maybePop(),
                             ),
                           ],
                         ),

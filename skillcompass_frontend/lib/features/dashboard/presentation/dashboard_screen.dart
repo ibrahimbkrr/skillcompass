@@ -11,10 +11,12 @@ import 'package:skillcompass_frontend/features/profile/presentation/learning_thi
 import 'package:skillcompass_frontend/features/profile/presentation/career_vision_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/blockers_challenges_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/support_community_screen.dart';
-import 'package:skillcompass_frontend/features/profile/presentation/inner_obstacles_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/networking_card_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/project_experience_screen.dart';
 import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_button.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_snackbar.dart';
+import 'widgets/dashboard_profile_card.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -185,14 +187,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       {
         'title': 'Engeller',
-        'icon': Icons.block,
-        'route': const BlockersChallengesScreen(),
-        'color': Colors.red,
+        'icon': Icons.folder_special,
+        'route': const ProjectExperienceScreen(),
+        'color': Colors.amber,
       },
       {
         'title': 'İç Engeller',
         'icon': Icons.psychology,
-        'route': const InnerObstaclesScreen(),
+        'route': const NetworkingCardScreen(),
         'color': Colors.teal,
       },
       {
@@ -225,41 +227,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           itemCount: profileSections.length,
           itemBuilder: (context, index) {
             final section = profileSections[index];
-            return Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => section['route'] as Widget),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        section['icon'] as IconData,
-                        size: 32,
-                        color: section['color'] as Color,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        section['title'] as String,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            return DashboardProfileCard(
+              title: section['title'] as String,
+              icon: section['icon'] as IconData,
+              color: section['color'] as Color,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => section['route'] as Widget),
+                );
+              },
             );
           },
         ),

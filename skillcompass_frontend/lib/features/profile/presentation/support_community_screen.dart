@@ -7,6 +7,7 @@ import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
 import 'package:skillcompass_frontend/shared/widgets/error_message.dart';
 import 'package:skillcompass_frontend/shared/widgets/input_decoration_helper.dart';
 import 'package:skillcompass_frontend/core/utils/feedback_helper.dart';
+import 'personal_brand_card_screen.dart';
 
 class SupportCommunityScreen extends StatefulWidget {
   const SupportCommunityScreen({super.key});
@@ -561,6 +562,15 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
                 ),
               ),
               const SizedBox(height: 20.0),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PersonalBrandCardScreen()),
+                  );
+                },
+                child: const Text('Kişisel Marka Kartı'),
+              ),
             ],
           ),
         ),

@@ -13,6 +13,7 @@ import 'package:skillcompass_frontend/features/profile/presentation/blockers_cha
 import 'package:skillcompass_frontend/features/profile/presentation/support_community_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/networking_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/project_experience_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/personal_brand_card_screen.dart';
 import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_button.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_snackbar.dart';
@@ -200,7 +201,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {
         'title': 'Destek',
         'icon': Icons.people,
-        'route': const SupportCommunityScreen(),
+        'route': const PersonalBrandCardScreen(),
         'color': Colors.indigo,
       },
     ];

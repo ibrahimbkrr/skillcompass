@@ -334,26 +334,26 @@ class _LearningThinkingStyleScreenState extends State<LearningThinkingStyleScree
                                 cloudGrey: cloudGrey,
                                 lightBlue: lightBlue,
                                 onOptionSelected: (option, val) {
-                                  setState(() {
-                                    if (option == 'Diğer') {
-                                      _showCustomPreferenceInput = val;
-                                      if (!val) _customPreferenceController.clear();
-                                    } else {
-                                      if (val) {
-                                        _selectedPreference = option;
-                                        _showCustomPreferenceInput = false;
-                                        _customPreferenceController.clear();
-                                      } else {
-                                        _selectedPreference = null;
-                                      }
-                                    }
-                                  });
-                                },
+                                          setState(() {
+                                            if (option == 'Diğer') {
+                                              _showCustomPreferenceInput = val;
+                                              if (!val) _customPreferenceController.clear();
+                                            } else {
+                                              if (val) {
+                                                _selectedPreference = option;
+                                                _showCustomPreferenceInput = false;
+                                                _customPreferenceController.clear();
+                                              } else {
+                                                _selectedPreference = null;
+                                              }
+                                            }
+                                          });
+                                        },
                                 onCustomChanged: (val) => setState(() => _customPreference = val),
                                 onCustomAdd: () {
-                                  setState(() {
-                                    _selectedPreference = '';
-                                  });
+                                                  setState(() {
+                                                    _selectedPreference = '';
+                                                  });
                                 },
                               ),
                             ),
@@ -372,27 +372,27 @@ class _LearningThinkingStyleScreenState extends State<LearningThinkingStyleScree
                                 cloudGrey: cloudGrey,
                                 lightBlue: lightBlue,
                                 onOptionSelected: (option, val) {
-                                  setState(() {
-                                    if (option == 'Diğer') {
-                                      _showCustomResourceInput = val;
-                                      if (!val) _customResourceController.clear();
-                                    } else {
-                                      if (val && _selectedResources.length < 3) {
-                                        _selectedResources.add(option);
-                                      } else if (!val) {
-                                        _selectedResources.remove(option);
-                                      }
-                                    }
-                                  });
-                                },
+                                          setState(() {
+                                            if (option == 'Diğer') {
+                                              _showCustomResourceInput = val;
+                                              if (!val) _customResourceController.clear();
+                                            } else {
+                                              if (val && _selectedResources.length < 3) {
+                                                _selectedResources.add(option);
+                                              } else if (!val) {
+                                                _selectedResources.remove(option);
+                                              }
+                                            }
+                                          });
+                                        },
                                 onCustomChanged: (val) => setState(() => _customResource = val),
                                 onCustomAdd: () {
-                                  setState(() {
-                                    _selectedResources.add(_customResource.trim());
-                                    _customResourceController.clear();
-                                    _customResource = '';
-                                    _showCustomResourceInput = false;
-                                  });
+                                                  setState(() {
+                                                    _selectedResources.add(_customResource.trim());
+                                                    _customResourceController.clear();
+                                                    _customResource = '';
+                                                    _showCustomResourceInput = false;
+                                                  });
                                 },
                               ),
                             ),
@@ -411,7 +411,7 @@ class _LearningThinkingStyleScreenState extends State<LearningThinkingStyleScree
                                 cloudGrey: cloudGrey,
                                 lightBlue: lightBlue,
                                 onInspireTap: _showMotivationInspire,
-                                onChanged: (val) => setState(() => _motivation = val),
+                                    onChanged: (val) => setState(() => _motivation = val),
                               ),
                             ),
                             const SizedBox(height: 14),
@@ -429,7 +429,7 @@ class _LearningThinkingStyleScreenState extends State<LearningThinkingStyleScree
                                 cloudGrey: cloudGrey,
                                 lightBlue: lightBlue,
                                 onInspireTap: _showBarrierInspire,
-                                onChanged: (val) => setState(() => _barrier = val),
+                                    onChanged: (val) => setState(() => _barrier = val),
                               ),
                             ),
                             const SizedBox(height: 18),
@@ -443,8 +443,8 @@ class _LearningThinkingStyleScreenState extends State<LearningThinkingStyleScree
                               darkGrey: darkGrey,
                               lightBlue: lightBlue,
                               isSaveEnabled: ((_selectedPreference != null && _selectedPreference!.isNotEmpty) || _customPreference.isNotEmpty) &&
-                                _selectedResources.isNotEmpty &&
-                                _motivation.trim().length >= 10 &&
+                                        _selectedResources.isNotEmpty &&
+                                        _motivation.trim().length >= 10 &&
                                 _barrier.trim().length >= 10,
                               onSave: _saveData,
                               onBack: () => Navigator.of(context).maybePop(),

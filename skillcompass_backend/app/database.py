@@ -1,8 +1,14 @@
+import os
 import firebase_admin
 from firebase_admin import credentials, firestore
+from dotenv import load_dotenv
 
-# Firebase Admin SDK için servis hesabı anahtarını yüklüyoruz
-cred = credentials.Certificate("skillcompass-project-firebase-adminsdk-fbsvc-4a7b677b86.json")
+# Ortam değişkenlerini yükle
+load_dotenv()
+
+# Servis hesabı dosya yolunu .env'den al
+service_account_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "skillcompass-project-firebase-adminsdk-fbsvc-d0608a42c2.json")
+cred = credentials.Certificate(service_account_path)
 
 firebase_admin.initialize_app(cred)
 

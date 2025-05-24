@@ -2,14 +2,42 @@
 
 A new Flutter project.
 
-## Getting Started
+## Kurulum
 
-This project is a starting point for a Flutter application.
+1. Depoyu klonlayın:
+   ```sh
+   git clone https://github.com/ibrahimbkrr/skillcompass.git
+   cd skillcompass/skillcompass_frontend
+   ```
+2. Bağımlılıkları yükleyin:
+   ```sh
+   flutter pub get
+   ```
+3. Uygulamayı başlatın:
+   ```sh
+   flutter run
+   ```
 
-A few resources to get you started if this is your first Flutter project:
+## Test Çalıştırma
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```sh
+flutter test
+```
+
+## .env Örneği
+
+`.env.example` dosyasını inceleyin ve kendi backend'inizde kullanmak üzere `.env` olarak kopyalayın:
+
+```
+OPENAI_API_KEY=sk-xxx...
+```
+
+## Güvenlik ve OpenAI API Kullanımı
+
+- OpenAI API anahtarınızı asla doğrudan Flutter kodunda veya .env dosyasında tutmayın.
+- Kendi backend'inizde (ör. Firebase Functions, FastAPI, Node.js) bir proxy endpoint oluşturun.
+- Flutter'dan sadece kendi backend'inize istek atın, backend OpenAI ile konuşsun.
+- .env dosyanızda API anahtarınızı sadece backend için saklayın.
 
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,

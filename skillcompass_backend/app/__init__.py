@@ -1,0 +1,1 @@
+# Bu dosya app dizininin bir Python paketi olduğunu belirtir 

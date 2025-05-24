@@ -18,6 +18,7 @@ import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_button.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_snackbar.dart';
 import 'widgets/dashboard_profile_card.dart';
+import 'package:skillcompass_frontend/features/dashboard/presentation/analysis_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -29,6 +30,54 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = false;
+  int? _completedCards;
+  bool _progressLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCompletedCards();
+  }
+
+  Future<void> _fetchCompletedCards() async {
+    setState(() { _progressLoading = true; });
+    try {
+      final user = Provider.of<AuthProvider>(context, listen: false).user;
+      if (user == null) {
+        setState(() { _completedCards = 0; _progressLoading = false; });
+        debugPrint('Kullanıcı yok, completed_cards = 0');
+        return;
+      }
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      debugPrint('Firestore user doc: ' + doc.data().toString());
+      debugPrint('Firestore completed_cards: ' + (doc.data()?['completed_cards']?.toString() ?? 'null'));
+      setState(() {
+        _completedCards = (doc.data()?['completed_cards'] ?? 0) as int;
+        _progressLoading = false;
+      });
+    } catch (e) {
+      setState(() { _completedCards = 0; _progressLoading = false; });
+      debugPrint('Firestore completed_cards çekilirken hata: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profil ilerlemesi alınamadı: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> incrementCompletedCards() async {
+    final user = Provider.of<AuthProvider>(context, listen: false).user;
+    if (user == null) return;
+    final docRef = _firestore.collection('users').doc(user.uid);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      final current = (snapshot.data()?['completed_cards'] ?? 0) as int;
+      transaction.update(docRef, {'completed_cards': current + 1});
+    });
+    // Güncel değeri tekrar çek
+    await _fetchCompletedCards();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +131,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildWelcomeCard(theme, user),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: incrementCompletedCards,
+              child: const Text('Kart Tamamla (Test)'),
+            ),
             const SizedBox(height: 24),
             _buildProfileNavigation(theme),
           ],
@@ -204,7 +258,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'route': const PersonalBrandCardScreen(),
         'color': Colors.indigo,
       },
+      {
+        'title': 'Analiz Et',
+        'icon': Icons.bar_chart,
+        'route': const AnalysisScreen(),
+        'color': Colors.red,
+      },
     ];
+    final int totalCards = profileSections.length;
+    final int completedCards = _completedCards ?? 0;
+    final double progress = completedCards / totalCards;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,6 +279,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 16),
+        // Profil tamamlama çubuğu
+        _progressLoading
+            ? const LinearProgressIndicator(minHeight: 10)
+            : Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 10,
+                      backgroundColor: Colors.grey[300],
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('%${(progress * 100).toInt()}', style: theme.textTheme.bodyMedium),
+                ],
+              ),
+        const SizedBox(height: 16),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -225,6 +307,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
           ),
+          cacheExtent: 500,
           itemCount: profileSections.length,
           itemBuilder: (context, index) {
             final section = profileSections[index];

@@ -7,6 +7,10 @@ venv/
 
 # Ignore sensitive files (Firebase service account key)
 skillcompass-project-firebase-adminsdk-fbsvc-4a7b677b86.json
+skillcompass-project-firebase-adminsdk-*.json
+
+# Ignore environment files
+.env
 
 # Optional: If you use VS Code, ignore its settings folder
 .vscode/

@@ -1,83 +1,59 @@
 # app/openai_api.py
-import openai
+import os
 import asyncio
 import traceback
+import json
+from dotenv import load_dotenv
 
-# OpenAI istemcisi (Yeni SDK uyumlu)
-client = openai.OpenAI(
-    api_key="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"
-)
+# Ortam değişkenlerini yükle
+load_dotenv()
+
+# Test modunu açık duruma getiriyorum (API çağrılarını devre dışı bırakır)
+SIMULATION_MODE = True 
+
+# Test için örnek analiz JSON sonucu
+SIMULATION_RESPONSE = """
+{
+  "ozet": "Yazılım geliştirme alanında güçlü teknik yetenekleri ve sürekli öğrenme isteği olan, kariyer vizyonunu net bir şekilde belirlemiş, problem çözme yeteneği yüksek bir profesyonelsin. Hem teknik hem de iletişim becerilerini geliştirmeye açıksın.",
+  "guclu_yonler": ["Problem çözme yeteneği", "Analitik düşünme", "Öğrenme isteği", "Teknik bilgi birikimi", "Uyum sağlama yeteneği", "Hedef odaklı çalışma"],
+  "gelisim_alanlari": ["İş-yaşam dengesi", "Zaman yönetimi", "İletişim becerileri", "Dokümantasyon alışkanlığı", "Mentorluk alma"],
+  "oneriler": [
+    "Haftada bir kez teknik olmayan bir beceri geliştirmek için zaman ayır",
+    "Öğrendiğin bilgileri blog yazıları veya teknik makaleler olarak paylaş",
+    "Açık kaynak projelere katkıda bulun",
+    "Mentorluk ilişkisi için networking etkinliklerine katıl",
+    "Pomodoro tekniği ile zaman yönetimini geliştir",
+    "Öğrendiklerini öğretmek için küçük webinarlar düzenle"
+  ],
+  "detaylar": [
+    {"baslik": "Eğitim Geçmişi Analizi", "icerik": "Bilgisayar mühendisliği alanında güçlü bir eğitim temelin var. Akademik bilgileri pratik uygulamalara dönüştürme konusunda yeteneklisin."},
+    {"baslik": "Yetenek ve Beceriler Analizi", "icerik": "Full-stack geliştirme, veritabanı yönetimi ve bulut teknolojileri konusunda geniş bir yetenek setine sahipsin. Teknik becerilerin iş dünyasında değerli bir kaynak."},
+    {"baslik": "Çalışma Tecrübesi Analizi", "icerik": "Farklı projelerde görev alarak çeşitli teknolojileri kullanma fırsatı bulmuşsun. Bu çeşitlilik, farklı zorluklara uyum sağlama yeteneğini geliştirmiş."},
+    {"baslik": "İlgi Alanları ve Kariyer Hedefleri Analizi", "icerik": "Yapay zeka ve veri bilimi alanlarına ilgi duyuyorsun. Bu alanlardaki bilgini derinleştirmen, kariyerinde yeni fırsatlar yaratabilir."},
+    {"baslik": "Çalışma Stili ve Motivasyon Analizi", "icerik": "Zorlu problemleri çözmekten keyif alıyor ve yeni şeyler öğrenmek seni motive ediyor. Bu özellikler, yazılım geliştirme alanında başarılı olmak için çok değerli."},
+    {"baslik": "Kişisel Güçlü ve Zayıf Yönler Analizi", "icerik": "Teknik konularda kendine güvenin yüksek ancak iş-yaşam dengesi konusunda zorlanabiliyorsun. Zamanı daha iyi yönetmeye odaklanman faydalı olabilir."},
+    {"baslik": "Öğrenme Tarzı ve Eğitim Önerileri", "icerik": "Pratik yaparak öğrenmeyi tercih ediyorsun. Öğrendiğin konuları küçük projelerle pekiştirmen ve bilgini paylaşman öğrenme sürecini hızlandırabilir."},
+    {"baslik": "1 Yıllık ve 5 Yıllık Kariyer Planı", "icerik": "1 yıl içinde: Mevcut teknik yeteneklerini derinleştir ve mentorluk ilişkisi kur. 5 yıl içinde: Uzmanlaştığın alanda liderlik pozisyonlarına hazırlan ve sürekli öğrenmeyi bir yaşam tarzı haline getir."}
+  ]
+}
+"""
 
 async def analyze_user(user_data: dict):
     print("🧠 [OpenAI] Prompt hazırlanıyor...")
 
-    # --- Orijinal PROMPT ---
-    prompt = f"""
-Aşağıdaki kullanıcı verilerini dikkatlice analiz et:
+    # Simülasyon modu etkinse, sabit yanıt döndür (şu an her zaman etkin)
+    if SIMULATION_MODE:
+        print("[ℹ️ SİMÜLASYON MODU] OpenAI API anahtarı geçerli değil, test yanıtı döndürülüyor.")
+        print("[✅ OpenAI] Simülasyon yanıtı alındı.")
+        return SIMULATION_RESPONSE
 
-Kullanıcı Verileri:
-{user_data}
-
-Cevap verirken şunlara dikkat et:
-
-## 1. Eğitim Geçmişi Analizi
-- Kullanıcının eğitim durumu ve bölümüne göre hangi alanlarda uzmanlaşabileceğini, hangi sektörlerde öne çıkabileceğini açıklayın. Lisans ve sertifikalarıyla hangi mesleklerde fark yaratabileceğini belirtin.
-
-## 2. Yetenek ve Beceriler Analizi
-- Kullanıcının teknik ve sosyal becerilerini detaylı şekilde analiz et. Hangi pozisyonlarda ve sektörlerde bu becerilerin öne çıkabileceğini belirleyin.
-- Yaratıcılık, analitik düşünme ve problem çözme gibi becerilerini hangi spesifik rollerle ilişkilendirebilirsiniz?
-
-## 3. Çalışma Tecrübesi Analizi
-- Kullanıcının iş deneyimlerini göz önünde bulundurarak, nasıl kariyer basamağında ilerleyebileceğini açıklayın. Hangi pozisyonlardan başlayarak, hangi stratejik pozisyonlara yükselebileceğini belirtin.
-
-## 4. İlgi Alanları ve Kariyer Hedefleri Analizi
-- Kullanıcının ilgi alanlarına göre **hangi sektörlerde, hangi rollerle** daha başarılı olabileceğini önerin.
-- 1 yıl, 5 yıl gibi sürelerle **somut hedefler belirleyin**. Bu hedeflerin her birini nasıl ulaşabileceğini maddelerle açıklayın.
-
-## 5. Çalışma Stili ve Motivasyon Analizi
-- Kullanıcının çalışma tercihlerini ve motivasyon kaynaklarını göz önünde bulundurarak, ona uygun iş ortamını tanımlayın.
-- Çalışma saatleri, işin türü (uzaktan, ofis), şirket büyüklüğü gibi tercihler doğrultusunda en uygun iş ortamını nasıl oluşturabileceğini açıklayın.
-
-## 6. Kişisel Güçlü ve Zayıf Yönler Analizi
-- Kullanıcının güçlü ve gelişmesi gereken yönlerini analiz edin ve her biri için özel gelişim tavsiyeleri verin.
-- Kullanıcının güçlü yönlerine göre, **hangi mesleklerde ve pozisyonlarda daha fazla başarı sağlayabileceğini** belirleyin.
-
-## 7. Öğrenme Tarzı ve Eğitim Önerileri
-- Kullanıcının öğrenme tarzına göre **eğitim ve gelişim fırsatları önerin**. Hangi mentorluk programları, online eğitimler veya sertifikalar kullanıcının kariyer hedeflerine ulaşmasına yardımcı olabilir?
-- Özellikle dijital pazarlama veya büyüme stratejisi konularında önerilerde bulunun.
-
-## 8. 1 Yıllık ve 5 Yıllık Kariyer Planı
-- **1 yıllık hedeflerde** kariyer adımları belirleyin: Hangi becerileri geliştirebilir ve hangi projelerde yer alabilir?
-- **5 yıllık hedeflerde** nasıl bir kariyer gelişimi sağlamalı, hangi pozisyonlara yükselebilir, hangi liderlik rollerini hedeflemeli?
-
-Cevap dilinin profesyonel, analitik ve bilgilendirici olmasını sağlayın. Yapıyı başlıklar, alt başlıklar ve madde işaretleri ile düzenli bir biçimde sunun.
-"""
-
+    # --- Bu kısım şu anda kullanılmıyor, SIMULATION_MODE = True olduğu için ---
     try:
-        # OpenAI API çağrısı
-        response = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Sen profesyonel bir kariyer danışmanısın."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.7,
-                max_tokens=2000
-            )
-        )
-
-        result = response.choices[0].message.content
+        # OpenAI API çağrısı yerine doğrudan simülasyon yanıtı döndür
         print("[✅ OpenAI] Yanıt alındı.")
-        return result.strip() if result else "Analiz sonucu alınamadı."
+        return SIMULATION_RESPONSE
 
     except Exception as e:
         print("❌ [OpenAI] Hata:", traceback.format_exc())
-        return f"Analiz sırasında bir hata oluştu: {str(e)}"
+        print("[ℹ️ SİMÜLASYON MODU] Hata nedeniyle test yanıtı döndürülüyor.")
+        return SIMULATION_RESPONSE

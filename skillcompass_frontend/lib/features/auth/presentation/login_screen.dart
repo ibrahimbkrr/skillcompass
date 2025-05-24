@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Firebase Authentication paketi
 // Kayıt ekranına yönlendirmek için import ediyoruz
 import 'package:skillcompass_frontend/features/auth/presentation/registration_screen.dart';
-// Başarılı giriş sonrası yönlendirilecek Dashboard sayfasını import ediyoruz
-import 'package:skillcompass_frontend/features/dashboard/presentation/dashboard_screen.dart'; // Bu satırı ekleyin
+// Başarılı giriş sonrası yönlendirilecek dashboard ekranını import ediyoruz
+import 'package:skillcompass_frontend/features/dashboard/presentation/dashboard_screen.dart';
+// import 'package:skillcompass_frontend/features/dashboard/presentation/modern_home_screen.dart'; // Bu ekranı artık kullanmıyoruz
 // import 'package:skillcompass_frontend/features/dashboard/presentation/home_screen.dart';
 // Artık başarılı giriş sonrası HomeScreen'a gitmiyoruz, bu importu silebilir veya yorum satırı yapabilirsiniz
 // import 'package:skillcompass_frontend/screens/home_screen.dart';
@@ -38,6 +39,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Firebase Authentication örneği
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    FirebaseAuth.instance.setLanguageCode('tr');
+  }
 
   @override
   void dispose() {

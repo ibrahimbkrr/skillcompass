@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../profile/services/profile_service.dart';
 import 'dart:math';
 import 'package:flutter/services.dart';
+import 'widgets/common/themed_card_header.dart';
+import 'widgets/common/themed_back_button.dart';
+import 'widgets/common/animated_question_card.dart';
+import 'widgets/common/inspiration_popup.dart';
+import 'widgets/common/profile_progress_header.dart';
+import 'dart:async';
 
 double _responsiveFont(BuildContext context, num base) {
   final scale = MediaQuery.textScalerOf(context).scale(1.0);
@@ -31,12 +37,15 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
 
   // --- Animation ---
   late AnimationController _animController;
-  late Animation<double> _headerAnim;
-  late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
 
   // --- Soru 1 ve 2 State ---
-  bool _showInspire = false;
-  String? _inspireText;
+  bool _showInspireShortTerm = false;
+  String? _inspireTextShortTerm;
+  Timer? _inspireTimerShortTerm;
+  bool _showInspireLongTerm = false;
+  String? _inspireTextLongTerm;
+  Timer? _inspireTimerLongTerm;
   final List<String> _shortTermExamples = [
     "Veri analizi projelerinde lider bir analist.",
     "Bir açık kaynak projesine katkıda bulunan geliştirici.",
@@ -87,13 +96,27 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
   OverlayEntry? _longTermOverlay;
   int _currentLongTermIndex = 0;
 
-  void _showInspirePopup(List<String> examples) {
+  final ProfileService _profileService = ProfileService();
+
+  void _showInspireShortTermPopup() {
     setState(() {
-      _inspireText = (examples..shuffle()).first;
-      _showInspire = true;
+      _inspireTextShortTerm = (_shortTermExamples..shuffle()).first;
+      _showInspireShortTerm = true;
     });
-    Future.delayed(const Duration(milliseconds: 3000), () {
-      if (mounted) setState(() => _showInspire = false);
+    _inspireTimerShortTerm?.cancel();
+    _inspireTimerShortTerm = Timer(const Duration(milliseconds: 5000), () {
+      if (mounted) setState(() => _showInspireShortTerm = false);
+    });
+  }
+
+  void _showInspireLongTermPopup() {
+    setState(() {
+      _inspireTextLongTerm = (_longTermExamples..shuffle()).first;
+      _showInspireLongTerm = true;
+    });
+    _inspireTimerLongTerm?.cancel();
+    _inspireTimerLongTerm = Timer(const Duration(milliseconds: 5000), () {
+      if (mounted) setState(() => _showInspireLongTerm = false);
     });
   }
 
@@ -102,10 +125,9 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 900),
     );
-    _headerAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic);
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeIn);
+    _scaleAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOutBack);
     _animController.forward();
     _fetchExistingData();
   }
@@ -113,19 +135,17 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
   Future<void> _fetchExistingData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('user_profile')
-        .doc('career_vision_v2')
-        .get();
-    if (doc.exists) {
-      final data = doc.data() ?? {};
-      setState(() {
-        _selectedPriorities.clear();
-        _selectedPriorities.addAll(List<String>.from(data['priorities'] ?? []));
-        _progress = (data['progress'] ?? 50).toDouble();
-      });
+    try {
+      final data = await _profileService.loadCareerVision();
+      if (data != null) {
+        setState(() {
+          _selectedPriorities.clear();
+          _selectedPriorities.addAll(List<String>.from(data['priorities'] ?? []));
+          _progress = (data['progress'] ?? 50).toDouble();
+        });
+      }
+    } catch (e) {
+      // Hata yönetimi
     }
   }
 
@@ -136,13 +156,12 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
       'priorities': _selectedPriorities,
       'progress': _progress.round(),
     };
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('user_profile')
-        .doc('career_vision_v2')
-        .set(data, SetOptions(merge: true));
-    if (mounted) Navigator.of(context).pop(true);
+    try {
+      await _profileService.saveCareerVision(data);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      // Hata yönetimi
+    }
   }
 
   String get _progressText {
@@ -156,6 +175,10 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
   void dispose() {
     _animController.dispose();
     _customPriorityController.dispose();
+    _inspireTimerShortTerm?.cancel();
+    _inspireTimerShortTerm = null;
+    _inspireTimerLongTerm?.cancel();
+    _inspireTimerLongTerm = null;
     super.dispose();
   }
 
@@ -174,6 +197,11 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
 
     return Scaffold(
       backgroundColor: bgSoftWhite,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: ThemedBackButton(),
+      ),
       body: Stack(
         children: [
           Container(
@@ -185,593 +213,481 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
               ),
             ),
           ),
-          if (_showInspire && _inspireText != null)
-            Center(
-              child: AnimatedOpacity(
-                opacity: _showInspire ? 1 : 0,
-                duration: const Duration(milliseconds: 400),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  decoration: BoxDecoration(
-                    color: gold.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: gold.withOpacity(0.18),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    _inspireText!,
-                    style: GoogleFonts.inter(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ),
           SafeArea(
             child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: size.height,
-                ),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
-                    child: ScaleTransition(
-                      scale: _headerAnim,
-                      child: Container(
-                        width: cardWidth,
-                        constraints: BoxConstraints(maxWidth: maxCardWidth),
-                        padding: EdgeInsets.all(cardPadding),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(borderRadius),
-                          boxShadow: [
-                            BoxShadow(
-                              color: mainBlue.withOpacity(0.10),
-                              blurRadius: elevation,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // --- Üst Kısım: Simge, Başlık, Açıklama, Rehber ---
-                            Row(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
+                  child: ScaleTransition(
+                    scale: _scaleAnim,
+                    child: Container(
+                      width: cardWidth,
+                      constraints: BoxConstraints(maxWidth: maxCardWidth),
+                      padding: EdgeInsets.all(cardPadding),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(borderRadius),
+                        boxShadow: [
+                          BoxShadow(
+                            color: mainBlue.withOpacity(0.10),
+                            blurRadius: elevation,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ProfileProgressHeader(
+                            completedSteps: _completedCount,
+                            totalSteps: 4,
+                            progress: _completedCount / 4,
+                            mainColor: mainBlue,
+                            accentColor: accentCoral,
+                            cardWidth: cardWidth,
+                            icon: Icons.flag_rounded,
+                            title: 'Kariyer Vizyonu',
+                            description: 'Kısa ve uzun vadeli kariyer hedeflerinizi, motivasyonunuzu ve vizyonunuzu paylaşın.',
+                          ),
+                          const SizedBox(height: 18),
+                          AnimatedQuestionCard(
+                            completed: _shortTermExamples.isNotEmpty,
+                            borderColor: _shortTermExamples.isNotEmpty ? gold : cloudGrey,
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [mainBlue, gold],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
+                                Text(
+                                  '1 yıl içinde hangi rolde veya konumda olmak istiyorsunuz?',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: _responsiveFont(context, 18),
+                                    color: mainBlue,
                                   ),
-                                  child: Icon(Icons.explore, color: gold, size: 36),
+                                  semanticsLabel: 'Kısa vadeli kariyer hedefi başlığı',
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Kariyer Vizyonunuzu Çizin',
-                                        style: GoogleFonts.inter(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 30,
-                                          color: mainBlue,
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: CompositedTransformTarget(
+                                        link: _shortTermLink,
+                                        child: TextField(
+                                          maxLength: 100,
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: _responsiveFont(context, 16),
+                                            color: mainBlue,
+                                          ),
+                                          decoration: InputDecoration(
+                                            hintText: "Örneğin: Flutter ile 2 mobil uygulama yayınlamış bir geliştirici.",
+                                            counterText: '',
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                              borderSide: const BorderSide(color: cloudGrey, width: 1),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                              borderSide: const BorderSide(color: accentCoral, width: 2),
+                                            ),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            hintStyle: GoogleFonts.inter(color: lightBlue),
+                                          ),
+                                          onChanged: (val) => setState(() => _shortTermExamples.first = val),
+                                          textInputAction: TextInputAction.next,
+                                          autofocus: false,
                                         ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Bilişim dünyasında nereye gitmek istiyorsunuz? Kısa ve uzun vadeli hedeflerinizi paylaşın, yol haritanızı birlikte oluşturalım.',
-                                        style: GoogleFonts.inter(fontSize: 16, color: cloudGrey),
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: _showInspireShortTermPopup,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: mainBlue.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.lightbulb,
+                                          color: gold,
+                                          size: 24,
+                                          semanticLabel: 'İlham önerisi göster',
+                                        ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                                IconButton(
-                                  icon: Icon(Icons.travel_explore, color: gold, size: 28),
-                                  onPressed: () => _showGuide(context),
-                                  tooltip: 'Rehber',
+                                const SizedBox(height: 8),
+                                if (_showInspireShortTerm && _inspireTextShortTerm != null)
+                                  AnimatedOpacity(
+                                    opacity: _showInspireShortTerm ? 1 : 0,
+                                    duration: const Duration(milliseconds: 300),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: mainBlue.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        _inspireTextShortTerm!,
+                                        style: GoogleFonts.inter(fontSize: 14, color: mainBlue, fontWeight: FontWeight.w600),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '1 yıl içinde ulaşılabilir bir hedef düşünün. Rol, proje veya bir başarı olabilir.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: _responsiveFont(context, 14),
+                                    color: lightBlue,
+                                  ),
+                                  semanticsLabel: 'Kısa vadeli hedef ipucu',
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
-                            Text(
-                              'Geleceğinizi hayal edin, hedeflerinize ulaşmak için ilk adımı atın!',
-                              style: GoogleFonts.inter(fontSize: 15, color: mainBlue, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 18),
-                            // --- Soru 1: 1 Yıl Sonra Hedef ---
-                            _AnimatedQuestionCard(
-                              completed: _shortTermExamples.isNotEmpty,
-                              borderColor: _shortTermExamples.isNotEmpty ? gold : cloudGrey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '1 yıl içinde hangi rolde veya konumda olmak istiyorsunuz?',
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: _responsiveFont(context, 18),
-                                      color: mainBlue,
+                          ),
+                          AnimatedQuestionCard(
+                            completed: _longTermExamples.isNotEmpty,
+                            borderColor: _longTermExamples.isNotEmpty ? gold : cloudGrey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '5 yıl içinde kendinizi nerede hayal ediyorsunuz?',
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: _responsiveFont(context, 18),
+                                          color: mainBlue,
+                                        ),
+                                        semanticsLabel: 'Uzun vadeli kariyer hedefi başlığı',
+                                      ),
                                     ),
-                                    semanticsLabel: 'Kısa vadeli kariyer hedefi başlığı',
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: _showInspireLongTermPopup,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: mainBlue.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.lightbulb,
+                                          color: gold,
+                                          size: 24,
+                                          semanticLabel: 'İlham önerisi göster',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  maxLength: 100,
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: _responsiveFont(context, 16),
+                                    color: mainBlue,
                                   ),
+                                  decoration: InputDecoration(
+                                    hintText: "Örneğin: Bir teknoloji startup'ında teknik lider.",
+                                    counterText: '',
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: cloudGrey, width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: accentCoral, width: 2),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    hintStyle: GoogleFonts.inter(color: lightBlue),
+                                  ),
+                                  onChanged: (val) => setState(() => _longTermExamples.first = val),
+                                ),
+                                const SizedBox(height: 8),
+                                if (_showInspireLongTerm && _inspireTextLongTerm != null)
+                                  AnimatedOpacity(
+                                    opacity: _showInspireLongTerm ? 1 : 0,
+                                    duration: const Duration(milliseconds: 300),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: mainBlue.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        _inspireTextLongTerm!,
+                                        style: GoogleFonts.inter(fontSize: 14, color: mainBlue, fontWeight: FontWeight.w600),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Büyük düşünün! 5 yıl içinde ulaşmak istediğiniz vizyonu tarif edin.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: _responsiveFont(context, 14),
+                                    color: lightBlue,
+                                  ),
+                                  semanticsLabel: 'Uzun vadeli hedef ipucu',
+                                ),
+                              ],
+                            ),
+                          ),
+                          AnimatedQuestionCard(
+                            completed: _selectedPriorities.isNotEmpty,
+                            borderColor: _selectedPriorities.isNotEmpty ? gold : cloudGrey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        'Hedeflerinize ulaşmak için neler ön planda?',
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: _responsiveFont(context, 18),
+                                          color: mainBlue,
+                                        ),
+                                        semanticsLabel: 'Öncelikler başlığı',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${_selectedPriorities.length}/3',
+                                      style: GoogleFonts.inter(
+                                        fontSize: _responsiveFont(context, 14),
+                                        color: gold,
+                                      ),
+                                      semanticsLabel: 'Seçilen öncelik sayısı',
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _priorityOptions.map((priority) {
+                                    final selected = _selectedPriorities.contains(priority);
+                                    return ChoiceChip(
+                                      label: Text(
+                                        priority,
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w500,
+                                          color: selected ? Colors.white : mainBlue,
+                                        ),
+                                      ),
+                                      selected: selected,
+                                      backgroundColor: Colors.white,
+                                      selectedColor: gold,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(color: selected ? gold : cloudGrey, width: 1.5),
+                                      ),
+                                      onSelected: (val) {
+                                        setState(() {
+                                          if (priority == 'Diğer') {
+                                            _showCustomPriorityInput = val;
+                                            if (!val) _customPriorityController.clear();
+                                          } else {
+                                            if (val && _selectedPriorities.length < 3) {
+                                              _selectedPriorities.add(priority);
+                                            } else if (!val) {
+                                              _selectedPriorities.remove(priority);
+                                            }
+                                          }
+                                        });
+                                      },
+                                      avatar: priority == 'Diğer'
+                                          ? const Icon(Icons.add, size: 18, color: gold)
+                                          : null,
+                                    );
+                                  }).toList(),
+                                ),
+                                if (_showCustomPriorityInput) ...[
                                   const SizedBox(height: 8),
                                   Row(
                                     children: [
                                       Expanded(
-                                        child: CompositedTransformTarget(
-                                          link: _shortTermLink,
-                                          child: TextField(
-                                            maxLength: 100,
-                                            style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: _responsiveFont(context, 16),
-                                              color: mainBlue,
-                                            ),
-                                            decoration: InputDecoration(
-                                              hintText: "Örneğin: Flutter ile 2 mobil uygulama yayınlamış bir geliştirici.",
-                                              counterText: '',
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                                borderSide: const BorderSide(color: accentCoral, width: 2),
-                                              ),
-                                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                              hintStyle: GoogleFonts.inter(color: lightBlue),
-                                            ),
-                                            onChanged: (val) => setState(() => _shortTermExamples.first = val),
-                                            textInputAction: TextInputAction.next,
-                                            autofocus: false,
+                                        child: TextField(
+                                          controller: _customPriorityController,
+                                          maxLength: 30,
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: _responsiveFont(context, 15),
+                                            color: mainBlue,
                                           ),
+                                          decoration: InputDecoration(
+                                            hintText: 'Kendi önceliğinizi yazın',
+                                            counterText: '',
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                              borderSide: const BorderSide(color: cloudGrey, width: 1),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                              borderSide: const BorderSide(color: gold, width: 2),
+                                            ),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            hintStyle: GoogleFonts.inter(color: lightBlue),
+                                          ),
+                                          onChanged: (val) => setState(() => _customPriority = val),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      GestureDetector(
-                                        onTap: () => _showInspirePopup(_shortTermExamples),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: mainBlue.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Icon(
-                                            Icons.lightbulb,
-                                            color: gold,
-                                            size: 24,
-                                            semanticLabel: 'İlham önerisi göster',
-                                          ),
+                                      ElevatedButton(
+                                        onPressed: _customPriority.trim().isNotEmpty && _selectedPriorities.length < 3
+                                            ? () {
+                                                setState(() {
+                                                  _selectedPriorities.add(_customPriority.trim());
+                                                  _customPriorityController.clear();
+                                                  _customPriority = '';
+                                                  _showCustomPriorityInput = false;
+                                                });
+                                              }
+                                            : null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: gold,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                         ),
+                                        child: const Text('Ekle'),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '1 yıl içinde ulaşılabilir bir hedef düşünün. Rol, proje veya bir başarı olabilir.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: _responsiveFont(context, 14),
-                                      color: lightBlue,
-                                    ),
-                                    semanticsLabel: 'Kısa vadeli hedef ipucu',
-                                  ),
                                 ],
-                              ),
-                            ),
-                            // --- Soru 2: 5 Yıl Sonra Vizyon ---
-                            FadeTransition(
-                              opacity: _fadeAnim,
-                              child: _AnimatedQuestionCard(
-                                completed: _longTermExamples.isNotEmpty,
-                                borderColor: _longTermExamples.isNotEmpty ? gold : cloudGrey,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '5 yıl içinde kendinizi nerede hayal ediyorsunuz?',
-                                            style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: _responsiveFont(context, 18),
-                                              color: mainBlue,
-                                            ),
-                                            semanticsLabel: 'Uzun vadeli kariyer hedefi başlığı',
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        GestureDetector(
-                                          onTap: () => _showInspirePopup(_longTermExamples),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: mainBlue.withOpacity(0.08),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(
-                                              Icons.lightbulb,
-                                              color: gold,
-                                              size: 24,
-                                              semanticLabel: 'İlham önerisi göster',
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    TextField(
-                                      maxLength: 100,
-                                      style: GoogleFonts.inter(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: _responsiveFont(context, 16),
-                                        color: mainBlue,
-                                      ),
-                                      decoration: InputDecoration(
-                                        hintText: "Örneğin: Bir teknoloji startup'ında teknik lider.",
-                                        counterText: '',
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: accentCoral, width: 2),
-                                        ),
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                        hintStyle: GoogleFonts.inter(color: lightBlue),
-                                      ),
-                                      onChanged: (val) => setState(() => _longTermExamples.first = val),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Büyük düşünün! 5 yıl içinde ulaşmak istediğiniz vizyonu tarif edin.',
-                                      style: GoogleFonts.inter(
-                                        fontSize: _responsiveFont(context, 14),
-                                        color: lightBlue,
-                                      ),
-                                      semanticsLabel: 'Uzun vadeli hedef ipucu',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            // --- Soru 3: Öncelikler ---
-                            FadeTransition(
-                              opacity: _fadeAnim,
-                              child: _AnimatedQuestionCard(
-                                completed: _selectedPriorities.isNotEmpty,
-                                borderColor: _selectedPriorities.isNotEmpty ? gold : cloudGrey,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            'Hedeflerinize ulaşmak için neler ön planda?',
-                                            style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: _responsiveFont(context, 18),
-                                              color: mainBlue,
-                                            ),
-                                            semanticsLabel: 'Öncelikler başlığı',
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '${_selectedPriorities.length}/3',
-                                          style: GoogleFonts.inter(
-                                            fontSize: _responsiveFont(context, 14),
-                                            color: gold,
-                                          ),
-                                          semanticsLabel: 'Seçilen öncelik sayısı',
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: _priorityOptions.map((priority) {
-                                        final selected = _selectedPriorities.contains(priority);
-                                        return ChoiceChip(
+                                const SizedBox(height: 10),
+                                if (_selectedPriorities.isNotEmpty)
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: _selectedPriorities.map((priority) {
+                                      return Container(
+                                        constraints: BoxConstraints(maxWidth: 200),
+                                        child: Chip(
                                           label: Text(
                                             priority,
                                             style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w500,
-                                              color: selected ? Colors.white : mainBlue,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
                                             ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          selected: selected,
-                                          backgroundColor: Colors.white,
-                                          selectedColor: gold,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                            side: BorderSide(color: selected ? gold : cloudGrey, width: 1.5),
-                                          ),
-                                          onSelected: (val) {
-                                            setState(() {
-                                              if (priority == 'Diğer') {
-                                                _showCustomPriorityInput = val;
-                                                if (!val) _customPriorityController.clear();
-                                              } else {
-                                                if (val && _selectedPriorities.length < 3) {
-                                                  _selectedPriorities.add(priority);
-                                                } else if (!val) {
-                                                  _selectedPriorities.remove(priority);
-                                                }
-                                              }
-                                            });
+                                          backgroundColor: gold,
+                                          elevation: 2,
+                                          deleteIcon: Icon(Icons.close, color: Colors.white, size: 18),
+                                          onDeleted: () {
+                                            setState(() => _selectedPriorities.remove(priority));
                                           },
-                                          avatar: priority == 'Diğer'
-                                              ? const Icon(Icons.add, size: 18, color: gold)
-                                              : null,
-                                        );
-                                      }).toList(),
-                                    ),
-                                    if (_showCustomPriorityInput) ...[
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: TextField(
-                                              controller: _customPriorityController,
-                                              maxLength: 30,
-                                              style: GoogleFonts.inter(
-                                                fontWeight: FontWeight.w500,
-                                                fontSize: _responsiveFont(context, 15),
-                                                color: mainBlue,
-                                              ),
-                                              decoration: InputDecoration(
-                                                hintText: 'Kendi önceliğinizi yazın',
-                                                counterText: '',
-                                                enabledBorder: OutlineInputBorder(
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  borderSide: const BorderSide(color: cloudGrey, width: 1),
-                                                ),
-                                                focusedBorder: OutlineInputBorder(
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  borderSide: const BorderSide(color: gold, width: 2),
-                                                ),
-                                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                                hintStyle: GoogleFonts.inter(color: lightBlue),
-                                              ),
-                                              onChanged: (val) => setState(() => _customPriority = val),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          ElevatedButton(
-                                            onPressed: _customPriority.trim().isNotEmpty && _selectedPriorities.length < 3
-                                                ? () {
-                                                    setState(() {
-                                                      _selectedPriorities.add(_customPriority.trim());
-                                                      _customPriorityController.clear();
-                                                      _customPriority = '';
-                                                      _showCustomPriorityInput = false;
-                                                    });
-                                                  }
-                                                : null,
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: gold,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                            ),
-                                            child: const Text('Ekle'),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                    const SizedBox(height: 10),
-                                    // Öncelik Bulutu
-                                    if (_selectedPriorities.isNotEmpty)
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: _selectedPriorities.map((priority) {
-                                          return Container(
-                                            constraints: BoxConstraints(maxWidth: 200),
-                                            child: Chip(
-                                              label: Text(
-                                                priority,
-                                                style: GoogleFonts.inter(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              backgroundColor: gold,
-                                              elevation: 2,
-                                              deleteIcon: Icon(Icons.close, color: Colors.white, size: 18),
-                                              onDeleted: () {
-                                                setState(() => _selectedPriorities.remove(priority));
-                                              },
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Hedeflerinize ulaşmak için en önemli 3 alanı seçin. Size özel bir yol haritası çizeceğiz.',
-                                      style: GoogleFonts.inter(
-                                        fontSize: _responsiveFont(context, 14),
-                                        color: lightBlue,
-                                      ),
-                                      semanticsLabel: 'Önemli alanlar başlığı',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            // --- Soru 4: Hedeflere Yakınlık ---
-                            FadeTransition(
-                              opacity: _fadeAnim,
-                              child: _AnimatedQuestionCard(
-                                completed: true,
-                                borderColor: gold,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Hedeflerinize ulaşmaya ne kadar yakınsınız?',
-                                      style: GoogleFonts.inter(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: _responsiveFont(context, 18),
-                                        color: mainBlue,
-                                      ),
-                                      semanticsLabel: 'Hedeflere yakınlık başlığı',
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        activeTrackColor: mainBlue,
-                                        inactiveTrackColor: cloudGrey,
-                                        thumbColor: gold,
-                                        overlayColor: gold.withOpacity(0.2),
-                                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-                                      ),
-                                      child: Slider(
-                                        value: _progress,
-                                        min: 0,
-                                        max: 100,
-                                        divisions: 100,
-                                        onChanged: (val) => setState(() => _progress = val),
-                                        label: 'Hedeflere yakınlık: ${_progress.round()}%',
-                                      ),
-                                    ),
-                                    Text(
-                                      _progressText,
-                                      style: GoogleFonts.inter(
-                                        fontSize: _responsiveFont(context, 14),
-                                        color: darkGrey,
-                                      ),
-                                      semanticsLabel: 'Hedeflere yakınlık metni',
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Mevcut durumunuzu dürüstçe değerlendirin. Bu, size en uygun adımları önermemizi sağlayacak.',
-                                      style: GoogleFonts.inter(
-                                        fontSize: _responsiveFont(context, 14),
-                                        color: lightBlue,
-                                      ),
-                                      semanticsLabel: 'Mevcut durum ipucu',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            // --- Progress bar ve butonlar ---
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Stack(
-                                    children: [
-                                      Container(
-                                        height: 7,
-                                        decoration: BoxDecoration(
-                                          color: cloudGrey,
-                                          borderRadius: BorderRadius.circular(4),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                         ),
-                                      ),
-                                      AnimatedContainer(
-                                        duration: const Duration(milliseconds: 400),
-                                        height: 7,
-                                        width: (cardWidth - 40) * progress,
-                                        decoration: BoxDecoration(
-                                          color: mainBlue,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                      ),
-                                    ],
+                                      );
+                                    }).toList(),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Icon(Icons.explore, color: mainBlue, size: 20),
-                                const SizedBox(width: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: mainBlue,
-                                    borderRadius: BorderRadius.circular(8),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Hedeflerinize ulaşmak için en önemli 3 alanı seçin. Size özel bir yol haritası çizeceğiz.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: _responsiveFont(context, 14),
+                                    color: lightBlue,
                                   ),
-                                  child: Text(
-                                    '4/7',
-                                    style: GoogleFonts.inter(
-                                      fontSize: _responsiveFont(context, 14),
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                  semanticsLabel: 'Önemli alanlar başlığı',
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: _selectedPriorities.isNotEmpty
-                                    ? _saveData
-                                    : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _selectedPriorities.isNotEmpty ? accentCoral : cloudGrey,
-                                  foregroundColor: _selectedPriorities.isNotEmpty ? Colors.white : darkGrey,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  textStyle: GoogleFonts.inter(
-                                    fontWeight: FontWeight.bold,
+                          ),
+                          AnimatedQuestionCard(
+                            completed: true,
+                            borderColor: gold,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Hedeflerinize ulaşmaya ne kadar yakınsınız?',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
                                     fontSize: _responsiveFont(context, 18),
+                                    color: mainBlue,
                                   ),
-                                  elevation: 0,
+                                  semanticsLabel: 'Hedeflere yakınlık başlığı',
                                 ),
-                                child: const Text('Kaydet ve İlerle'),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Hedeflerinizi netleştirerek kariyer planınızı güçlendirin.',
-                              style: GoogleFonts.inter(
-                                fontSize: _responsiveFont(context, 14),
-                                color: lightBlue,
-                              ),
-                              semanticsLabel: 'Kariyer planı güçlendirme ipucu',
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.arrow_back_ios_new_rounded,
-                                  color: lightBlue,
-                                  size: 24,
+                                const SizedBox(height: 8),
+                                SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    activeTrackColor: mainBlue,
+                                    inactiveTrackColor: cloudGrey,
+                                    thumbColor: gold,
+                                    overlayColor: gold.withOpacity(0.2),
+                                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+                                  ),
+                                  child: Slider(
+                                    value: _progress,
+                                    min: 0,
+                                    max: 100,
+                                    divisions: 100,
+                                    onChanged: (val) => setState(() => _progress = val),
+                                    label: 'Hedeflere yakınlık: ${_progress.round()}%',
+                                  ),
                                 ),
-                                onPressed: () => Navigator.of(context).maybePop(),
-                                tooltip: 'Geri',
-                              ),
+                                Text(
+                                  _progressText,
+                                  style: GoogleFonts.inter(
+                                    fontSize: _responsiveFont(context, 14),
+                                    color: darkGrey,
+                                  ),
+                                  semanticsLabel: 'Hedeflere yakınlık metni',
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Mevcut durumunuzu dürüstçe değerlendirin. Bu, size en uygun adımları önermemizi sağlayacak.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: _responsiveFont(context, 14),
+                                    color: lightBlue,
+                                  ),
+                                  semanticsLabel: 'Mevcut durum ipucu',
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: _selectedPriorities.isNotEmpty
+                                  ? _saveData
+                                  : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _selectedPriorities.isNotEmpty ? accentCoral : cloudGrey,
+                                foregroundColor: _selectedPriorities.isNotEmpty ? Colors.white : darkGrey,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                textStyle: GoogleFonts.inter(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: _responsiveFont(context, 18),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text('Kaydet ve İlerle'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Hedeflerinizi netleştirerek kariyer planınızı güçlendirin.',
+                            style: GoogleFonts.inter(
+                              fontSize: _responsiveFont(context, 14),
+                              color: lightBlue,
+                            ),
+                            semanticsLabel: 'Kariyer planı güçlendirme ipucu',
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -801,155 +717,6 @@ class _CareerVisionCardScreenState extends State<CareerVisionCardScreen> with Si
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Kapat'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AnimatedQuestionCard extends StatelessWidget {
-  final Widget child;
-  final bool completed;
-  final Color borderColor;
-  const _AnimatedQuestionCard({
-    required this.child,
-    required this.completed,
-    required this.borderColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeInOut,
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: _CareerVisionCardScreenState.gold.withOpacity(0.10),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-            border: Border.all(
-              color: borderColor,
-              width: completed ? 2 : 1,
-            ),
-          ),
-          child: child,
-        ),
-        if (completed)
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _CareerVisionCardScreenState.successGreen.withOpacity(0.18),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(2),
-                child: Icon(
-                  Icons.check_circle,
-                  color: _CareerVisionCardScreenState.successGreen,
-                  size: 22,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _InspirationOverlay extends StatelessWidget {
-  final LayerLink link;
-  final String example;
-  final String title;
-  final VoidCallback onClose;
-
-  const _InspirationOverlay({
-    required this.link,
-    required this.example,
-    required this.title,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    return GestureDetector(
-      onTap: onClose,
-      behavior: HitTestBehavior.translucent,
-      child: Stack(
-        children: [
-          Positioned.fill(child: Container(color: Colors.transparent)),
-          CompositedTransformFollower(
-            link: link,
-            showWhenUnlinked: false,
-            offset: const Offset(0, 56),
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.13),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                  border: Border.all(
-                    color: _CareerVisionCardScreenState.gold,
-                    width: 1.5,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.bold,
-                        fontSize: _responsiveFont(context, 16),
-                        color: _CareerVisionCardScreenState.mainBlue,
-                      ),
-                      semanticsLabel: title,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      example,
-                      style: GoogleFonts.inter(
-                        fontSize: _responsiveFont(context, 14),
-                        color: _CareerVisionCardScreenState.darkGrey,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      semanticsLabel: example,
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
         ],
       ),

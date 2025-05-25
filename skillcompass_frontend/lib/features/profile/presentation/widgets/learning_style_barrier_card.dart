@@ -94,13 +94,24 @@ class LearningStyleBarrierCard extends StatelessWidget {
             child: AnimatedOpacity(
               opacity: showInspirePopup ? 1 : 0,
               duration: const Duration(milliseconds: 300),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: gold.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 350,
+                  maxHeight: 120,
                 ),
-                child: Text(inspireList[inspireIndex], style: GoogleFonts.inter(fontSize: 14, color: mainBlue)),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: gold.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    inspireList[inspireIndex],
+                    style: GoogleFonts.inter(fontSize: 14, color: mainBlue),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 3,
+                  ),
+                ),
               ),
             ),
           ),

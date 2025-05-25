@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../profile/services/profile_service.dart';
 import 'package:provider/provider.dart';
 import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
 import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
@@ -19,7 +19,7 @@ class BlockersChallengesScreen extends StatefulWidget {
 class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ProfileService _profileService = ProfileService();
 
   // --- State Değişkenleri ---
   User? _currentUser;
@@ -110,21 +110,13 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
       _loadingError = '';
     });
     try {
-      DocumentSnapshot<Map<String, dynamic>> snapshot =
-          await _firestore
-              .collection('users')
-              .doc(_currentUser!.uid)
-              .collection('profile_data')
-              .doc('blockers_challenges_v3') // Versiyon 3
-              .get();
-      if (snapshot.exists && snapshot.data() != null) {
-        final data = snapshot.data()!;
+      final data = await _profileService.loadBlockersChallenges();
+      if (data != null) {
         if (mounted) {
           _updateStateWithLoadedData(data);
         }
       }
     } catch (e) {
-      print("HATA: blockers_challenges_v3 verisi yüklenemedi: $e");
       _loadingError = 'Kaydedilmiş veriler yüklenirken bir sorun oluştu.';
     } finally {
       if (mounted) {
@@ -176,13 +168,12 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
   }
 
   // --- Firestore'a Kaydetme ---
-  Future<void> _saveToFirestore() async {
+  Future<void> _saveToBackend() async {
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
       _showFeedback('Oturum bulunamadı.', isError: true);
       return;
     }
-
     List<String> selectedStruggledTopics =
         _struggledTopicsOptions.entries
             .where((e) => e.value)
@@ -198,38 +189,21 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
             .where((e) => e.value)
             .map((e) => e.key)
             .toList();
-
     Map<String, dynamic> blockersData = {
       'struggledTopics': selectedStruggledTopics,
-      'struggledTopicsDetails':
-          _struggledTopicsOptions['Diğer (Açıklayınız)'] == true
-              ? _topicDetailsController.text.trim()
-              : null,
+      'struggledTopicsDetails': _topicDetailsController.text.trim(),
       'progressionBlockers': selectedProgressionBlockers,
       'feelingStuckStatus': _feelingStuckStatus,
-      'feelingStuckDetails':
-          (_feelingStuckStatus == 'Evet' || _feelingStuckStatus == 'Bazen')
-              ? _feelingStuckDetailsController.text.trim()
-              : null,
+      'feelingStuckDetails': _feelingStuckDetailsController.text.trim(),
       'codingChallenges': selectedCodingChallenges,
-      'otherCodingChallenge':
-          _codingChallengesOptions['Diğer (Açıklayınız)'] == true
-              ? _otherCodingChallengeController.text.trim()
-              : null,
+      'otherCodingChallenge': _otherCodingChallengeController.text.trim(),
       'priorityLearnTopic': _priorityLearnTopicController.text.trim(),
-      'lastUpdated': Timestamp.now(),
     };
-
     setState(() {
       _isSaving = true;
     });
     try {
-      await _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('profile_data')
-          .doc('blockers_challenges_v3') // Versiyon 3
-          .set(blockersData, SetOptions(merge: true));
+      await _profileService.saveBlockersChallenges(blockersData);
       if (mounted) {
         _showFeedback(
           'Engeller ve eksikler bilgisi kaydedildi!',
@@ -269,7 +243,7 @@ class _BlockersChallengesScreenState extends State<BlockersChallengesScreen> {
       );
       return;
     }
-    await _saveToFirestore();
+    await _saveToBackend();
   }
   // ------------------------------------
 

@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'widgets/common/themed_card_header.dart';
+import 'widgets/common/animated_question_card.dart';
+import 'widgets/common/inspiration_popup.dart';
 import 'widgets/personal_brand_header.dart';
 import 'widgets/personal_brand_profile_question.dart';
 import 'widgets/personal_brand_goal_question.dart';
 import 'widgets/personal_brand_content_question.dart';
 import 'widgets/personal_brand_challenge_question.dart';
 import 'widgets/personal_brand_progress_actions.dart';
+import 'widgets/common/profile_progress_header.dart';
+import 'package:skillcompass_frontend/features/profile/services/profile_service.dart';
 // ... diğer widget importları (ilerleyen adımlarda eklenecek)
 
 class PersonalBrandCardScreen extends StatefulWidget {
@@ -46,44 +51,37 @@ class _PersonalBrandCardScreenState extends State<PersonalBrandCardScreen> with 
   String _brandChallenge = '';
 
   // --- Animasyon ---
-  late AnimationController _scaleController;
+  late AnimationController _animController;
   late Animation<double> _scaleAnim;
 
   @override
   void initState() {
     super.initState();
-    _scaleController = AnimationController(
+    _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 900),
     );
-    _scaleAnim = CurvedAnimation(parent: _scaleController, curve: Curves.easeOutBack);
+    _scaleAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOutBack);
     _fetchBrandData();
-    _scaleController.forward();
+    _animController.forward();
   }
 
   Future<void> _fetchBrandData() async {
     setState(() { _isLoading = true; });
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
+      final data = await ProfileService().loadPersonalBrand();
+      if (data != null) {
+        setState(() {
+          _brandData = data;
+          _selectedProfiles = List<String>.from(data['current_profiles'] ?? []);
+          _brandGoal = data['brand_goal'] ?? '';
+          _selectedContents = List<String>.from(data['content_types'] ?? []);
+          _brandChallenge = data['brand_challenges'] ?? '';
+          _isLoading = false;
+        });
+      } else {
         setState(() { _isLoading = false; });
-        return;
       }
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('user_profile')
-          .doc('personal_brand')
-          .get();
-      final data = doc.data();
-      setState(() {
-        _brandData = data;
-        _selectedProfiles = List<String>.from(data?['current_profiles'] ?? []);
-        _brandGoal = data?['brand_goal'] ?? '';
-        _selectedContents = List<String>.from(data?['content_types'] ?? []);
-        _brandChallenge = data?['brand_challenges'] ?? '';
-        _isLoading = false;
-      });
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -103,18 +101,14 @@ class _PersonalBrandCardScreenState extends State<PersonalBrandCardScreen> with 
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('user_profile')
-          .doc('personal_brand')
-          .set({
+      final data = {
         'current_profiles': _selectedProfiles,
         'brand_goal': _brandGoal,
         'content_types': _selectedContents,
         'brand_challenges': _brandChallenge,
-        'lastUpdated': DateTime.now(),
-      }, SetOptions(merge: true));
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+      await ProfileService().savePersonalBrand(data);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Kişisel marka kartı kaydedildi!'), backgroundColor: Colors.green),
@@ -161,108 +155,121 @@ class _PersonalBrandCardScreenState extends State<PersonalBrandCardScreen> with 
 
   @override
   void dispose() {
-    _scaleController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final mainBlue = Color(0xFF2A4B7C);
+    final gold = Color(0xFFD4A017);
+    final cloudGrey = Color(0xFFA0AEC0);
+    final lightBlue = Color(0xFF6B7280);
+    final accentCoral = Color(0xFFFF6B6B);
+    final cardPadding = 24.0;
+    final borderRadius = 10.0;
+    final elevation = 6.0;
+    final maxCardWidth = 520.0;
     final size = MediaQuery.of(context).size;
-    final cardWidth = size.width * 0.9;
-    const maxCardWidth = 520.0;
-    const minCardWidth = 260.0;
-    double cardPadding = 24.0;
-    if (size.width < 350) cardPadding = 12.0;
-    const borderRadius = 10.0;
-    const elevation = 16.0;
-    const horizontalPadding = 8.0;
+    final cardWidth = size.width * 0.95 < maxCardWidth ? size.width * 0.95 : maxCardWidth;
 
     return Scaffold(
       backgroundColor: bgSoftWhite,
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [bgSoftWhite, bgGradientEnd],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
-                  child: ScaleTransition(
-                    scale: _scaleAnim,
-                    child: Container(
-                      width: cardWidth,
-                      constraints: BoxConstraints(
-                        maxWidth: maxCardWidth,
-                        minWidth: minCardWidth,
-                      ),
-                      padding: EdgeInsets.all(cardPadding),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(borderRadius),
-                        boxShadow: [
-                          BoxShadow(
-                            color: mainBlue.withOpacity(0.10),
-                            blurRadius: elevation,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          PersonalBrandHeader(
-                            mainBlue: mainBlue,
-                            gold: gold,
-                            cloudGrey: cloudGrey,
-                          ),
-                          const SizedBox(height: 24),
-                          PersonalBrandProfileQuestion(
-                            initialSelected: _selectedProfiles,
-                            onChanged: (list) => setState(() => _selectedProfiles = list),
-                          ),
-                          const SizedBox(height: 24),
-                          PersonalBrandGoalQuestion(
-                            initialGoal: _brandGoal,
-                            onChanged: (val) => setState(() => _brandGoal = val),
-                          ),
-                          const SizedBox(height: 24),
-                          PersonalBrandContentQuestion(
-                            initialSelected: _selectedContents,
-                            onChanged: (list) => setState(() => _selectedContents = list),
-                          ),
-                          const SizedBox(height: 24),
-                          PersonalBrandChallengeQuestion(
-                            initialChallenge: _brandChallenge,
-                            onChanged: (val) => setState(() => _brandChallenge = val),
-                          ),
-                          const SizedBox(height: 32),
-                          PersonalBrandProgressActions(
-                            isComplete: _isComplete,
-                            isSaving: _isSaving,
-                            onSave: _saveToFirestore,
-                            summary: _summary,
-                            resources: _isComplete ? _resources : null,
-                            totalSteps: 4,
-                            completedSteps: (_selectedProfiles.isNotEmpty ? 1 : 0) + (_brandGoal.trim().length >= 10 ? 1 : 0) + (_selectedContents.isNotEmpty ? 1 : 0) + (_brandChallenge.trim().length >= 10 ? 1 : 0),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+      body: Center(
+        child: ScaleTransition(
+          scale: _scaleAnim,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxCardWidth),
+            child: Card(
+              elevation: elevation,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(borderRadius)),
+              child: Padding(
+                padding: EdgeInsets.all(cardPadding),
+                child: SingleChildScrollView(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(child: Text(_error!, style: GoogleFonts.inter(color: Colors.red)))
+                          : Stack(
+                              children: [
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    ProfileProgressHeader(
+                                      completedSteps: (_selectedProfiles.isNotEmpty ? 1 : 0) + (_brandGoal.trim().length >= 10 ? 1 : 0) + (_selectedContents.isNotEmpty ? 1 : 0) + (_brandChallenge.trim().length >= 10 ? 1 : 0),
+                                      totalSteps: 4,
+                                      progress: ((_selectedProfiles.isNotEmpty ? 1 : 0) + (_brandGoal.trim().length >= 10 ? 1 : 0) + (_selectedContents.isNotEmpty ? 1 : 0) + (_brandChallenge.trim().length >= 10 ? 1 : 0)) / 4,
+                                      mainColor: mainBlue,
+                                      accentColor: gold,
+                                      cardWidth: cardWidth,
+                                      icon: Icons.star,
+                                      title: 'Kişisel Marka',
+                                      description: 'Kişisel markanızı ve hedeflerinizi paylaşın.',
+                                    ),
+                                    const SizedBox(height: 18),
+                                    AnimatedQuestionCard(
+                                      completed: _selectedProfiles.isNotEmpty,
+                                      borderColor: _selectedProfiles.isNotEmpty ? gold : cloudGrey,
+                                      child: PersonalBrandProfileQuestion(
+                                        initialSelected: _selectedProfiles,
+                                        onChanged: (list) => setState(() => _selectedProfiles = list),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    AnimatedQuestionCard(
+                                      completed: _brandGoal.trim().length >= 10,
+                                      borderColor: _brandGoal.trim().length >= 10 ? gold : cloudGrey,
+                                      child: PersonalBrandGoalQuestion(
+                                        initialGoal: _brandGoal,
+                                        onChanged: (val) => setState(() => _brandGoal = val),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    AnimatedQuestionCard(
+                                      completed: _selectedContents.isNotEmpty,
+                                      borderColor: _selectedContents.isNotEmpty ? gold : cloudGrey,
+                                      child: PersonalBrandContentQuestion(
+                                        initialSelected: _selectedContents,
+                                        onChanged: (list) => setState(() => _selectedContents = list),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    AnimatedQuestionCard(
+                                      completed: _brandChallenge.trim().length >= 10,
+                                      borderColor: _brandChallenge.trim().length >= 10 ? gold : cloudGrey,
+                                      child: PersonalBrandChallengeQuestion(
+                                        initialChallenge: _brandChallenge,
+                                        onChanged: (val) => setState(() => _brandChallenge = val),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 52,
+                                      child: ElevatedButton(
+                                        onPressed: _isComplete ? _saveToFirestore : null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _isComplete ? accentCoral : cloudGrey,
+                                          foregroundColor: _isComplete ? Colors.white : lightBlue,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
+                                          elevation: 0,
+                                        ),
+                                        child: _isSaving ? const CircularProgressIndicator() : const Text('Kaydet ve İlerle'),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text('Tüm sorulara yanıt vererek en iyi sonucu alın.', style: GoogleFonts.inter(fontSize: 14, color: lightBlue)),
+                                  ],
+                                ),
+                              ],
+                            ),
                 ),
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

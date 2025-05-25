@@ -130,6 +130,20 @@ class LearningStyleResourcesCard extends StatelessWidget {
               ),
             ],
           ),
+          if (selectedResources.where((r) => !resourceOptions.contains(r)).isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, bottom: 2.0),
+              child: Wrap(
+                spacing: 8,
+                children: selectedResources
+                    .where((r) => !resourceOptions.contains(r))
+                    .map((resource) => Chip(
+                          label: Text(resource),
+                          onDeleted: () => onOptionSelected(resource, false),
+                        ))
+                    .toList(),
+              ),
+            ),
         ],
         const SizedBox(height: 10),
         Text(

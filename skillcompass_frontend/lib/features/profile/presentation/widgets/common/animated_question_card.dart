@@ -19,7 +19,7 @@ class AnimatedQuestionCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.10),
+                color: Colors.blueGrey.withOpacity(0.10),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -50,7 +50,7 @@ class AnimatedQuestionCard extends StatelessWidget {
                   ],
                 ),
                 padding: const EdgeInsets.all(2),
-                child: Icon(Icons.check_circle, color: Colors.green, size: 22),
+                child: const Icon(Icons.check_circle, color: Colors.green, size: 22),
               ),
             ),
           ),

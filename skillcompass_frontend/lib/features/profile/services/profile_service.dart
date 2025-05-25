@@ -1,325 +1,281 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:skillcompass_frontend/core/constants/app_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// A service class for handling all profile-related operations with Firestore
+/// Profil işlemleri için backend API ile iletişim kuran servis
 class ProfileService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // --- Identity Status Operations ---
-  
-  /// Loads identity status data for the current user
+  /// Backend'den kimlik durumu verisini yükler
   Future<Map<String, dynamic>?> loadIdentityStatus() async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile')
-          .doc('identity_status_v3')
-          .get();
-      
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      // Log the error
-      print('Error loading identity status: $e');
-      rethrow; // Rethrow to let UI handle the error
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/identity-status');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Kimlik durumu yüklenemedi: ${response.body}');
     }
   }
 
-  /// Saves identity status data for the current user
+  /// Backend'e kimlik durumu verisini kaydeder
   Future<void> saveIdentityStatus(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      // Add updated_at timestamp
-      data['updated_at'] = FieldValue.serverTimestamp();
-      
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile')
-          .doc('identity_status_v3')
-          .set(data, SetOptions(merge: true));
-    } catch (e) {
-      print('Error saving identity status: $e');
-      rethrow;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/identity-status');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Kimlik durumu kaydedilemedi: ${response.body}');
     }
   }
 
-  // --- Technical Profile Operations ---
-  
-  /// Loads technical profile data for the current user
+  /// Backend'den teknik profil verisini yükler
   Future<Map<String, dynamic>?> loadTechnicalProfile() async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile')
-          .doc('technical_profile_v3')
-          .get();
-      
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      print('Error loading technical profile: $e');
-      rethrow;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/technical-profile');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Teknik profil yüklenemedi: ${response.body}');
     }
   }
 
-  /// Saves technical profile data for the current user
+  /// Backend'e teknik profil verisini kaydeder
   Future<void> saveTechnicalProfile(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      data['updated_at'] = FieldValue.serverTimestamp();
-      
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile')
-          .doc('technical_profile_v3')
-          .set(data, SetOptions(merge: true));
-    } catch (e) {
-      print('Error saving technical profile: $e');
-      rethrow;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/technical-profile');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Teknik profil kaydedilemedi: ${response.body}');
     }
   }
 
-  // --- Learning Style Operations ---
-  
-  /// Loads learning style data for the current user
+  /// Backend'den öğrenme stili verisini yükler
   Future<Map<String, dynamic>?> loadLearningStyle() async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('learning_thinking_style_v2')
-          .get();
-      
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      print('Error loading learning style: $e');
-      rethrow;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/learning-style');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Öğrenme stili yüklenemedi: ${response.body}');
     }
   }
 
-  /// Saves learning style data for the current user
+  /// Backend'e öğrenme stili verisini kaydeder
   Future<void> saveLearningStyle(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      data['updated_at'] = FieldValue.serverTimestamp();
-      
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('learning_thinking_style_v2')
-          .set(data, SetOptions(merge: true));
-    } catch (e) {
-      print('Error saving learning style: $e');
-      rethrow;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/learning-style');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Öğrenme stili kaydedilemedi: ${response.body}');
     }
   }
 
-  // --- Career Vision Operations ---
-  
-  /// Loads career vision data for the current user
+  /// Backend'den kariyer vizyonu verisini yükler
   Future<Map<String, dynamic>?> loadCareerVision() async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('career_vision_v5')
-          .get();
-      
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      print('Error loading career vision: $e');
-      rethrow;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/career-vision');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Kariyer vizyonu yüklenemedi: ${response.body}');
     }
   }
 
-  /// Saves career vision data for the current user
+  /// Backend'e kariyer vizyonu verisini kaydeder
   Future<void> saveCareerVision(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      data['updated_at'] = FieldValue.serverTimestamp();
-      
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('career_vision_v5')
-          .set(data, SetOptions(merge: true));
-    } catch (e) {
-      print('Error saving career vision: $e');
-      rethrow;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/career-vision');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Kariyer vizyonu kaydedilemedi: ${response.body}');
     }
   }
-  
-  // --- Blockers & Challenges Operations ---
-  
-  /// Loads blockers and challenges data for the current user
+
+  /// Backend'den engeller ve zorluklar verisini yükler
   Future<Map<String, dynamic>?> loadBlockersChallenges() async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('blockers_challenges_v3')
-          .get();
-      
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      print('Error loading blockers and challenges: $e');
-      rethrow;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/blockers-challenges');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Engeller ve zorluklar yüklenemedi: ${response.body}');
     }
   }
 
-  /// Saves blockers and challenges data for the current user
+  /// Backend'e engeller ve zorluklar verisini kaydeder
   Future<void> saveBlockersChallenges(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      data['updated_at'] = FieldValue.serverTimestamp();
-      
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('blockers_challenges_v3')
-          .set(data, SetOptions(merge: true));
-    } catch (e) {
-      print('Error saving blockers and challenges: $e');
-      rethrow;
-    }
-  }
-  
-  // --- Inner Obstacles Operations ---
-  
-  /// Loads inner obstacles data for the current user
-  Future<Map<String, dynamic>?> loadInnerObstacles() async {
-    final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('inner_obstacles_v2')
-          .get();
-      
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      print('Error loading inner obstacles: $e');
-      rethrow;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/blockers-challenges');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Engeller ve zorluklar kaydedilemedi: ${response.body}');
     }
   }
 
-  /// Saves inner obstacles data for the current user
-  Future<void> saveInnerObstacles(Map<String, dynamic> data) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      data['updated_at'] = FieldValue.serverTimestamp();
-      
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('inner_obstacles_v2')
-          .set(data, SetOptions(merge: true));
-    } catch (e) {
-      print('Error saving inner obstacles: $e');
-      rethrow;
-    }
-  }
-  
-  // --- Support Community Operations ---
-  
-  /// Loads support community data for the current user
+  /// Backend'den destek topluluğu verisini yükler
   Future<Map<String, dynamic>?> loadSupportCommunity() async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) return null;
-
-    try {
-      final doc = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('support_community_v2')
-          .get();
-      
-      if (doc.exists) {
-        return doc.data();
-      }
-      return null;
-    } catch (e) {
-      print('Error loading support community: $e');
-      rethrow;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/support-community');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Destek topluluğu yüklenemedi: ${response.body}');
     }
   }
 
-  /// Saves support community data for the current user
+  /// Backend'e destek topluluğu verisini kaydeder
   Future<void> saveSupportCommunity(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
     final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      data['updated_at'] = FieldValue.serverTimestamp();
-      
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('support_community_v2')
-          .set(data, SetOptions(merge: true));
-    } catch (e) {
-      print('Error saving support community: $e');
-      rethrow;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/support-community');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Destek topluluğu kaydedilemedi: ${response.body}');
     }
   }
+
+  /// Backend'den analiz sonucunu alır
+  Future<Map<String, dynamic>> analyzeUserProfile() async {
+    final token = await _getBackendJwt();
+    final user = _auth.currentUser;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/analysis/${user.uid}/analyze');
+    final response = await http.post(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Analiz işlemi başarısız: \\${response.body}');
+    }
+  }
+
+  /// Backend'den analiz sonucunu alır (userId ve token ile)
+  Future<Map<String, dynamic>> analyzeUserProfileWithToken(String userId, String token) async {
+    final url = Uri.parse('${AppConstants.baseUrl}/analysis/$userId/analyze');
+    final response = await http.post(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Analiz işlemi başarısız: ${response.body}');
+    }
+  }
+
+  /// Backend'e kişisel marka verisini kaydeder
+  Future<void> savePersonalBrand(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
+    final user = _auth.currentUser;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/personal-brand');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Kişisel marka kaydedilemedi: ${response.body}');
+    }
+  }
+
+  /// Backend'e networking verisini kaydeder
+  Future<void> saveNetworking(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
+    final user = _auth.currentUser;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/networking');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Networking kaydedilemedi: ${response.body}');
+    }
+  }
+
+  /// Backend'e proje deneyimi verisini kaydeder
+  Future<void> saveProjectExperience(Map<String, dynamic> data) async {
+    final token = await _getBackendJwt();
+    final user = _auth.currentUser;
+    if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/project-experience');
+    final response = await http.post(url, headers: _headers(token), body: jsonEncode(data));
+    if (response.statusCode != 200) {
+      throw Exception('Proje deneyimi kaydedilemedi: ${response.body}');
+    }
+  }
+
+  /// Backend'den proje deneyimi verisini yükler
+  Future<Map<String, dynamic>?> loadProjectExperience() async {
+    final token = await _getBackendJwt();
+    final user = _auth.currentUser;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/project-experience');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Proje deneyimi yüklenemedi: ${response.body}');
+    }
+  }
+
+  /// Backend'den kişisel marka verisini yükler
+  Future<Map<String, dynamic>?> loadPersonalBrand() async {
+    final token = await _getBackendJwt();
+    final user = _auth.currentUser;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/personal-brand');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Kişisel marka yüklenemedi: ${response.body}');
+    }
+  }
+
+  /// Backend'den networking verisini yükler
+  Future<Map<String, dynamic>?> loadNetworking() async {
+    final token = await _getBackendJwt();
+    final user = _auth.currentUser;
+    if (user == null || token == null) return null;
+    final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/networking');
+    final response = await http.get(url, headers: _headers(token));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Networking verisi yüklenemedi: ${response.body}');
+    }
+  }
+
+  /// JWT token'ı secure şekilde alır
+  Future<String?> _getBackendJwt() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('backend_jwt');
+  }
+
+  /// HTTP istekleri için header oluşturur
+  Map<String, String> _headers(String token) => {
+    'Authorization': 'Bearer $token',
+    'Content-Type': 'application/json',
+  };
 } 

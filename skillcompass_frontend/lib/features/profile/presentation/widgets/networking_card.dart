@@ -8,6 +8,11 @@ import 'networking_challenges_question.dart';
 import 'networking_progress_actions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'common/themed_card_header.dart';
+import 'common/animated_question_card.dart';
+import 'common/inspiration_popup.dart';
+import 'common/profile_progress_header.dart';
+import 'package:skillcompass_frontend/features/profile/services/profile_service.dart';
 
 class NetworkingCard extends StatefulWidget {
   const NetworkingCard({super.key});
@@ -65,17 +70,13 @@ class _NetworkingCardState extends State<NetworkingCard> with SingleTickerProvid
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Oturum bulunamadı');
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('user_profile')
-          .doc('networking')
-          .set({
+      final data = {
         'mentorship_need': _mentorshipNeed,
         'current_connections': _connections,
         'networking_goal': _networkingGoal,
         'networking_challenges': _networkingChallenges,
-      });
+      };
+      await ProfileService().saveNetworking(data);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Networking bilgileri kaydedildi!', style: GoogleFonts.inter()), backgroundColor: Colors.green),
@@ -146,10 +147,30 @@ class _NetworkingCardState extends State<NetworkingCard> with SingleTickerProvid
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 900),
     );
     _scaleAnim = CurvedAnimation(parent: _controller, curve: Curves.easeOutBack);
     _controller.forward();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() { _isSaving = true; _error = null; });
+    try {
+      final data = await ProfileService().loadNetworking();
+      if (data != null) {
+        setState(() {
+          _mentorshipNeed = data['mentorship_need'] ?? '';
+          _connections = List<String>.from(data['current_connections'] ?? []);
+          _networkingGoal = data['networking_goal'] ?? '';
+          _networkingChallenges = data['networking_challenges'] ?? '';
+        });
+      }
+    } catch (e) {
+      setState(() { _error = 'Veri yüklenemedi: $e'; });
+    } finally {
+      setState(() { _isSaving = false; });
+    }
   }
 
   @override
@@ -160,12 +181,17 @@ class _NetworkingCardState extends State<NetworkingCard> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final mainBlue = theme.colorScheme.primary;
-    final gold = theme.colorScheme.secondary;
-    final cloudGrey = theme.colorScheme.outline;
-    final lightBlue = theme.colorScheme.primaryContainer;
-    final successGreen = theme.colorScheme.secondaryContainer;
+    final mainBlue = Color(0xFF2A4B7C);
+    final gold = Color(0xFFD4A017);
+    final cloudGrey = Color(0xFFA0AEC0);
+    final lightBlue = Color(0xFF6B7280);
+    final accentCoral = Color(0xFFFF6B6B);
+    final cardPadding = 24.0;
+    final borderRadius = 10.0;
+    final elevation = 6.0;
+    final maxCardWidth = 520.0;
+    final size = MediaQuery.of(context).size;
+    final cardWidth = size.width * 0.95 < maxCardWidth ? size.width * 0.95 : maxCardWidth;
 
     void _showGuideDialog() {
       showDialog(
@@ -197,122 +223,142 @@ class _NetworkingCardState extends State<NetworkingCard> with SingleTickerProvid
         child: ScaleTransition(
           scale: _scaleAnim,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: BoxConstraints(maxWidth: maxCardWidth),
             child: Card(
-              elevation: 6,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: elevation,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(borderRadius)),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 24),
+                padding: EdgeInsets.all(cardPadding),
                 child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: NetworkingHeader(
-                          mainBlue: mainBlue,
-                          gold: gold,
-                          cloudGrey: cloudGrey,
-                          onGuide: _showGuideDialog,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // Soru 1: Mentorluk İhtiyacı
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: MentorshipNeedQuestion(
-                          value: _mentorshipNeed,
-                          onChanged: (v) => setState(() {
-                            _mentorshipNeed = v;
-                            if (v != '' && v != _customMentorshipNeed) _customMentorshipNeed = '';
-                          }),
-                          customValue: _customMentorshipNeed,
-                          onCustomChanged: (v) => setState(() => _customMentorshipNeed = v),
-                          onAddCustom: _addCustomMentorshipNeed,
-                          canAddCustom: _customMentorshipNeed.trim().isNotEmpty,
-                          completed: _mentorshipCompleted,
-                          mainBlue: mainBlue,
-                          gold: gold,
-                          cloudGrey: cloudGrey,
-                          lightBlue: lightBlue,
-                          successGreen: successGreen,
-                        ),
-                      ),
-                      // Soru 2: Mevcut Bağlantılar
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: CurrentConnectionsQuestion(
-                          selected: _connections,
-                          onChanged: _onConnectionChanged,
-                          customValue: _customConnection,
-                          onCustomChanged: (v) => setState(() => _customConnection = v),
-                          onAddCustom: _addCustomConnection,
-                          canAddCustom: _customConnection.trim().isNotEmpty && !_connections.contains(_customConnection.trim()) && _connections.length < 3,
-                          completed: _connectionsCompleted,
-                          mainBlue: mainBlue,
-                          gold: gold,
-                          cloudGrey: cloudGrey,
-                          lightBlue: lightBlue,
-                          successGreen: successGreen,
-                        ),
-                      ),
-                      // Soru 3: Networking Hedefi
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: NetworkingGoalQuestion(
-                          value: _networkingGoal,
-                          onChanged: (v) => setState(() => _networkingGoal = v),
-                          onInspireTap: _toggleGoalInspire,
-                          showInspirePopup: _showGoalInspire,
-                          inspireText: _goalInspireList[_goalInspireIdx],
-                          completed: _goalCompleted,
-                          mainBlue: mainBlue,
-                          gold: gold,
-                          cloudGrey: cloudGrey,
-                          lightBlue: lightBlue,
-                          successGreen: successGreen,
-                        ),
-                      ),
-                      // Soru 4: Networking Zorlukları
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: NetworkingChallengesQuestion(
-                          value: _networkingChallenges,
-                          onChanged: (v) => setState(() => _networkingChallenges = v),
-                          onInspireTap: _toggleChallengesInspire,
-                          showInspirePopup: _showChallengesInspire,
-                          inspireText: _challengesInspireList[_challengesInspireIdx],
-                          completed: _challengesCompleted,
-                          mainBlue: mainBlue,
-                          gold: gold,
-                          cloudGrey: cloudGrey,
-                          lightBlue: lightBlue,
-                          successGreen: successGreen,
-                        ),
-                      ),
-                      // TODO: Add other questions, progress, actions
-                      const SizedBox(height: 32),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: NetworkingProgressActions(
-                          completedCount: _completedCount,
-                          totalCount: 4,
-                          canSave: _canSave,
-                          isSaving: _isSaving,
-                          onSave: _saveData,
-                          onBack: () => Navigator.of(context).maybePop(),
-                          mainBlue: mainBlue,
-                          gold: gold,
-                          coral: Colors.deepOrangeAccent,
-                          cloudGrey: cloudGrey,
-                          lightBlue: lightBlue,
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: _isSaving
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(child: Text(_error!, style: GoogleFonts.inter(color: Colors.red)))
+                          : Stack(
+                              children: [
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    ProfileProgressHeader(
+                                      completedSteps: _completedCount,
+                                      totalSteps: 4,
+                                      progress: _completedCount / 4,
+                                      mainColor: mainBlue,
+                                      accentColor: gold,
+                                      cardWidth: cardWidth,
+                                      icon: Icons.handshake,
+                                      title: 'Mentorship & Networking',
+                                      description: 'Mentorluk ihtiyaçlarınızı ve networking hedeflerinizi paylaşın.',
+                                    ),
+                                    const SizedBox(height: 18),
+                                    AnimatedQuestionCard(
+                                      completed: _mentorshipCompleted,
+                                      borderColor: _mentorshipCompleted ? gold : cloudGrey,
+                                      child: MentorshipNeedQuestion(
+                                        value: _mentorshipNeed,
+                                        onChanged: (v) => setState(() => _mentorshipNeed = v),
+                                        customValue: _customMentorshipNeed,
+                                        onCustomChanged: (v) => setState(() => _customMentorshipNeed = v),
+                                        onAddCustom: _addCustomMentorshipNeed,
+                                        canAddCustom: _customMentorshipNeed.trim().isNotEmpty,
+                                        completed: _mentorshipCompleted,
+                                        mainBlue: mainBlue,
+                                        gold: gold,
+                                        cloudGrey: cloudGrey,
+                                        lightBlue: lightBlue,
+                                        successGreen: Colors.green,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    AnimatedQuestionCard(
+                                      completed: _connectionsCompleted,
+                                      borderColor: _connectionsCompleted ? gold : cloudGrey,
+                                      child: CurrentConnectionsQuestion(
+                                        selected: _connections,
+                                        onChanged: _onConnectionChanged,
+                                        customValue: _customConnection,
+                                        onCustomChanged: (v) => setState(() => _customConnection = v),
+                                        onAddCustom: _addCustomConnection,
+                                        canAddCustom: _customConnection.trim().isNotEmpty && !_connections.contains(_customConnection.trim()) && _connections.length < 3,
+                                        completed: _connectionsCompleted,
+                                        mainBlue: mainBlue,
+                                        gold: gold,
+                                        cloudGrey: cloudGrey,
+                                        lightBlue: lightBlue,
+                                        successGreen: Colors.green,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    AnimatedQuestionCard(
+                                      completed: _goalCompleted,
+                                      borderColor: _goalCompleted ? gold : cloudGrey,
+                                      child: NetworkingGoalQuestion(
+                                        value: _networkingGoal,
+                                        onChanged: (v) => setState(() => _networkingGoal = v),
+                                        onInspireTap: _toggleGoalInspire,
+                                        showInspirePopup: _showGoalInspire,
+                                        inspireText: _goalInspireList[_goalInspireIdx],
+                                        completed: _goalCompleted,
+                                        mainBlue: mainBlue,
+                                        gold: gold,
+                                        cloudGrey: cloudGrey,
+                                        lightBlue: lightBlue,
+                                        successGreen: Colors.green,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    AnimatedQuestionCard(
+                                      completed: _challengesCompleted,
+                                      borderColor: _challengesCompleted ? gold : cloudGrey,
+                                      child: NetworkingChallengesQuestion(
+                                        value: _networkingChallenges,
+                                        onChanged: (v) => setState(() => _networkingChallenges = v),
+                                        onInspireTap: _toggleChallengesInspire,
+                                        showInspirePopup: _showChallengesInspire,
+                                        inspireText: _challengesInspireList[_challengesInspireIdx],
+                                        completed: _challengesCompleted,
+                                        mainBlue: mainBlue,
+                                        gold: gold,
+                                        cloudGrey: cloudGrey,
+                                        lightBlue: lightBlue,
+                                        successGreen: Colors.green,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 52,
+                                      child: ElevatedButton(
+                                        onPressed: _canSave ? _saveData : null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _canSave ? accentCoral : cloudGrey,
+                                          foregroundColor: _canSave ? Colors.white : lightBlue,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
+                                          elevation: 0,
+                                        ),
+                                        child: _isSaving ? const CircularProgressIndicator() : const Text('Kaydet ve İlerle'),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text('Tüm sorulara yanıt vererek en iyi sonucu alın.', style: GoogleFonts.inter(fontSize: 14, color: lightBlue)),
+                                  ],
+                                ),
+                                if (_showGoalInspire)
+                                  InspirationPopup(
+                                    text: _goalInspireList[_goalInspireIdx],
+                                    color: gold,
+                                    visible: true,
+                                  ),
+                                if (_showChallengesInspire)
+                                  InspirationPopup(
+                                    text: _challengesInspireList[_challengesInspireIdx],
+                                    color: gold,
+                                    visible: true,
+                                  ),
+                              ],
+                            ),
                 ),
               ),
             ),

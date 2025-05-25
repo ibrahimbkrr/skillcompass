@@ -14,7 +14,7 @@ class AppConstants {
   static const String lastAnalysisKey = 'last_analysis';
 
   // API Endpoints
-  static const String baseUrl = 'http://192.168.1.110:8000';
+  static const String baseUrl = 'http://192.168.1.100:8000';
   static const String apiVersion = 'v1';
   static const String analysisEndpoint = '/analysis';
   static const String skillsEndpoint = '/skills';

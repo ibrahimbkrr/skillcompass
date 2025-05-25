@@ -9,16 +9,15 @@ import 'package:skillcompass_frontend/features/profile/presentation/technical_pr
 import 'package:skillcompass_frontend/features/profile/presentation/technical_profile_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/learning_thinking_style_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/career_vision_card_screen.dart';
-import 'package:skillcompass_frontend/features/profile/presentation/blockers_challenges_screen.dart';
-import 'package:skillcompass_frontend/features/profile/presentation/support_community_screen.dart';
-import 'package:skillcompass_frontend/features/profile/presentation/networking_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/project_experience_screen.dart';
+import 'package:skillcompass_frontend/features/profile/presentation/networking_card_screen.dart';
 import 'package:skillcompass_frontend/features/profile/presentation/personal_brand_card_screen.dart';
 import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_button.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_snackbar.dart';
 import 'widgets/dashboard_profile_card.dart';
 import 'package:skillcompass_frontend/features/dashboard/presentation/analysis_screen.dart';
+import 'package:skillcompass_frontend/features/skill_analysis/skill_radar_chart_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -241,27 +240,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'color': Colors.purple,
       },
       {
-        'title': 'Engeller',
-        'icon': Icons.folder_special,
+        'title': 'Proje Deneyimleri',
+        'icon': Icons.rocket_launch_rounded,
         'route': const ProjectExperienceScreen(),
         'color': Colors.amber,
       },
       {
-        'title': 'İç Engeller',
-        'icon': Icons.psychology,
+        'title': 'Networking',
+        'icon': Icons.connect_without_contact,
         'route': const NetworkingCardScreen(),
-        'color': Colors.teal,
+        'color': Colors.indigo,
       },
       {
-        'title': 'Destek',
-        'icon': Icons.people,
+        'title': 'Kişisel Marka',
+        'icon': Icons.person_pin,
         'route': const PersonalBrandCardScreen(),
-        'color': Colors.indigo,
+        'color': Colors.deepPurple,
       },
       {
         'title': 'Analiz Et',
         'icon': Icons.bar_chart,
-        'route': const AnalysisScreen(),
+        'route': const SkillRadarChartScreen(),
         'color': Colors.red,
       },
     ];

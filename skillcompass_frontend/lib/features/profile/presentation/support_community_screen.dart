@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../profile/services/profile_service.dart';
 import 'package:provider/provider.dart';
 import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
 import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
@@ -19,7 +19,7 @@ class SupportCommunityScreen extends StatefulWidget {
 class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ProfileService _profileService = ProfileService();
 
   // --- State Değişkenleri ---
   User? _currentUser;
@@ -102,21 +102,14 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
       _loadingError = '';
     });
     try {
-      DocumentSnapshot<Map<String, dynamic>> snapshot =
-          await _firestore
-              .collection('users')
-              .doc(_currentUser!.uid)
-              .collection('profile_data')
-              .doc('support_community_v2') // Versiyon 2
-              .get();
-      if (snapshot.exists && snapshot.data() != null) {
-        final data = snapshot.data()!;
+      final data = await _profileService.loadSupportCommunity();
+      if (data != null) {
         if (mounted) {
           _updateStateWithLoadedData(data);
         }
       }
     } catch (e) {
-      print("HATA: support_community_v2 verisi yüklenemedi: $e");
+      print("HATA: support_community verisi yüklenemedi: $e");
       _loadingError = 'Kaydedilmiş veriler yüklenirken bir sorun oluştu.';
     } finally {
       if (mounted) {
@@ -162,13 +155,12 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
     super.dispose();
   }
 
-  Future<void> _saveToFirestore() async {
+  Future<void> _saveToBackend() async {
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
       _showFeedback('Oturum bulunamadı.', isError: true);
       return;
     }
-
     List<String> selectedProblemSolvingMethods =
         _problemSolvingMethods.entries
             .where((e) => e.value)
@@ -179,7 +171,6 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
             .where((e) => e.value)
             .map((e) => e.key)
             .toList();
-
     Map<String, dynamic> supportData = {
       'problemSolvingMethods': selectedProblemSolvingMethods,
       'feedbackPreference': _feedbackPreference,
@@ -198,19 +189,12 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
       'communityActivities': selectedCommunityActivities,
       'hasSupportCircle': _hasSupportCircle,
       'supportCircleDetails': _supportCircleDetailsController.text.trim(),
-      'lastUpdated': Timestamp.now(),
     };
-
     setState(() {
       _isSaving = true;
     });
     try {
-      await _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('profile_data')
-          .doc('support_community_v2') // Versiyon 2
-          .set(supportData, SetOptions(merge: true));
+      await _profileService.saveSupportCommunity(supportData);
       if (mounted) {
         _showFeedback(
           'Destek ve topluluk bilgileri kaydedildi!',
@@ -220,7 +204,7 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
         if (mounted && Navigator.canPop(context)) Navigator.pop(context);
       }
     } catch (e) {
-      print("Firestore Kayıt Hatası (Destek v2): $e");
+      print("HATA: Destek ve topluluk bilgileri kaydedilirken bir hata oluştu: $e");
       _showFeedback('Bilgiler kaydedilirken bir hata oluştu.', isError: true);
     } finally {
       if (mounted) {
@@ -252,7 +236,7 @@ class _SupportCommunityScreenState extends State<SupportCommunityScreen> {
       );
       return;
     }
-    await _saveToFirestore();
+    await _saveToBackend();
   }
 
   void _showFeedback(String message, {required bool isError}) {

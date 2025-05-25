@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'widgets/networking_card.dart';
+import 'widgets/common/themed_back_button.dart';
 
 class NetworkingCardScreen extends StatelessWidget {
   const NetworkingCardScreen({super.key});
@@ -7,9 +8,11 @@ class NetworkingCardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Mentorship & Networking'),
-        elevation: 1,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: ThemedBackButton(),
       ),
       body: const Center(
         child: NetworkingCard(),

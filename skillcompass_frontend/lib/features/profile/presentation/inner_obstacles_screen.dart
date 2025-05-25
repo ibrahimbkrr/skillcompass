@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../profile/services/profile_service.dart';
 import 'package:provider/provider.dart';
 import 'package:skillcompass_frontend/features/profile/logic/user_provider.dart';
 import 'package:skillcompass_frontend/shared/widgets/loading_indicator.dart';
@@ -18,7 +18,7 @@ class InnerObstaclesScreen extends StatefulWidget {
 class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ProfileService _profileService = ProfileService();
 
   // --- State Değişkenleri ---
   User? _currentUser;
@@ -80,15 +80,8 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
       _loadingError = '';
     });
     try {
-      DocumentSnapshot<Map<String, dynamic>> snapshot =
-          await _firestore
-              .collection('users')
-              .doc(_currentUser!.uid)
-              .collection('profile_data')
-              .doc('inner_obstacles_v2') // Versiyon 2
-              .get();
-      if (snapshot.exists && snapshot.data() != null) {
-        final data = snapshot.data()!;
+      final data = await _profileService.loadInnerObstacles();
+      if (data != null) {
         if (mounted) {
           _updateStateWithLoadedData(data);
         }
@@ -140,19 +133,17 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
   }
 
   // --- Firestore'a Kaydetme ---
-  Future<void> _saveToFirestore() async {
+  Future<void> _saveToBackend() async {
     User? currentUser = _auth.currentUser;
     if (currentUser == null) {
       /* Hata */
       return;
     }
-
     List<String> selectedInternalBlockers =
         _internalBlockersOptions.entries
             .where((e) => e.value)
             .map((e) => e.key)
             .toList();
-
     Map<String, dynamic> obstaclesData = {
       'internalBlockers': selectedInternalBlockers,
       'otherInternalBlocker':
@@ -167,19 +158,12 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
       'gaveUpSituation': _gaveUpSituationController.text.trim(),
       'prerequisiteBelief': _prerequisiteBeliefController.text.trim(),
       'appExpectation': _appExpectationController.text.trim(),
-      'lastUpdated': Timestamp.now(),
     };
-
     setState(() {
       _isSaving = true;
     });
     try {
-      await _firestore
-          .collection('users')
-          .doc(currentUser.uid)
-          .collection('profile_data')
-          .doc('inner_obstacles_v2') // Versiyon 2
-          .set(obstaclesData, SetOptions(merge: true));
+      await _profileService.saveInnerObstacles(obstaclesData);
       if (mounted) {
         /* Başarı + Geri Dön */
       }
@@ -214,7 +198,7 @@ class _InnerObstaclesScreenState extends State<InnerObstaclesScreen> {
       );
       return;
     }
-    await _saveToFirestore();
+    await _saveToBackend();
   }
   // ------------------------------------
 

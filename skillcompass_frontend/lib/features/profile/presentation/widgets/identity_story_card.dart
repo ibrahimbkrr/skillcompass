@@ -45,9 +45,10 @@ class IdentityStoryCard extends StatelessWidget {
         TextFormField(
           controller: storyController,
           maxLength: 100,
+          maxLines: 2,
           style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 16),
           decoration: InputDecoration(
-            hintText: 'Örneğin: Kullanıcı odaklı mobil uygulamalar geliştiren bir Flutter tutkunu.',
+            hintText: 'Örneğin: Yenilikçi bir yazılım geliştirici.',
             counterText: '',
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),

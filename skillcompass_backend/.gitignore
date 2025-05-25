@@ -14,3 +14,8 @@ skillcompass-project-firebase-adminsdk-*.json
 
 # Optional: If you use VS Code, ignore its settings folder
 .vscode/
+
+# Additional files and directories to ignore
+*.json
+.venv/
+build/

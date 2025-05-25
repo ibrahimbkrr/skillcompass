@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:lottie/lottie.dart';
 import 'dart:convert';
 import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
+import 'package:skillcompass_frontend/core/constants/app_constants.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -19,6 +19,8 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
   Map<String, dynamic>? _analysisJson;
   DateTime? _lastAnalysisDate;
   late AnimationController _buttonController;
+  bool _analysisStarted = false;
+  String? _rawBackendMessage;
 
   @override
   void initState() {
@@ -38,39 +40,42 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
     super.dispose();
   }
 
+  Future<String?> _getBackendJwt() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    return authProvider.backendJwt;
+  }
+
   Future<void> _fetchAnalysisHistory() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
     try {
-      final user = Provider.of<AuthProvider>(context, listen: false).user;
-      if (user == null) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.user;
+      final token = await _getBackendJwt();
+      if (user == null || token == null) {
         setState(() {
-          _error = 'Kullanıcı bulunamadı.';
+          _error = 'Kullanıcı bulunamadı veya oturum geçersiz.';
           _isLoading = false;
         });
         return;
       }
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('profile_data')
-          .doc('analysis_report')
-          .get();
-      if (snapshot.exists) {
-        final data = snapshot.data()!;
-        try {
-          final json = jsonDecode(data['report_text'] ?? '{}');
-          setState(() {
-            _analysisJson = json;
-            _lastAnalysisDate = (data['generated_at'] as Timestamp?)?.toDate();
-          });
-        } catch (e) {
-          setState(() {
-            _error = 'Analiz raporu okunamadı. Lütfen tekrar analiz yapın.';
-          });
-        }
+      final url = Uri.parse('${AppConstants.baseUrl}/users/${user.uid}/history');
+      final response = await http.get(url, headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      });
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _analysisJson = data['analysis_report'] != null ? jsonDecode(data['analysis_report']) : null;
+          _lastAnalysisDate = data['generated_at'] != null ? DateTime.tryParse(data['generated_at']) : null;
+        });
+      } else {
+        setState(() {
+          _error = 'Analiz geçmişi alınamadı: ${response.body}';
+        });
       }
     } catch (e) {
       setState(() {
@@ -88,41 +93,94 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
       _isLoading = true;
       _error = null;
       _analysisJson = null;
+      _analysisStarted = true;
+      _rawBackendMessage = null;
     });
     _buttonController.repeat(reverse: true);
     try {
-      final user = Provider.of<AuthProvider>(context, listen: false).user;
-      if (user == null) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.user;
+      final token = await _getBackendJwt();
+      if (user == null || token == null) {
         setState(() {
-          _error = 'Kullanıcı bulunamadı.';
-          _isLoading = false;
+          _error = 'Kullanıcı bulunamadı veya oturum geçersiz.';
         });
-        _buttonController.stop();
         return;
       }
-      final url = Uri.parse('http://192.168.1.109:8000/users/${user.uid}/analyze');
-      final response = await http.post(url);
+      final url = Uri.parse('${AppConstants.baseUrl}/analysis/${user.uid}/analyze');
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+      setState(() {
+        _rawBackendMessage = response.body;
+      });
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         try {
-          final json = jsonDecode(data['analysis_report'] ?? '{}');
+          if (data['status'] != 'success') {
+            throw Exception(data['message'] ?? 'Bilinmeyen bir hata oluştu');
+          }
+
+          final analysisReport = data['analysis_report'];
+          if (analysisReport == null) {
+            throw Exception('Backend yanıtında analysis_report alanı bulunamadı');
+          }
+
+          Map<String, dynamic> json;
+          try {
+            json = jsonDecode(analysisReport);
+          } catch (e) {
+            setState(() {
+              _error = 'Analiz sonucu JSON formatında değil. Backend yanıtı:\n$analysisReport';
+              _rawBackendMessage = analysisReport;
+            });
+            return;
+          }
+
+          // JSON formatı doğru mu kontrol et
+          if (!json.containsKey('ozet') || 
+              !json.containsKey('guclu_yonler') || 
+              !json.containsKey('gelisim_alanlari') || 
+              !json.containsKey('oneriler') || 
+              !json.containsKey('detaylar')) {
+            setState(() {
+              _error = 'Analiz sonucu beklenen formatta değil. Eksik alanlar var.';
+              _rawBackendMessage = analysisReport;
+            });
+            return;
+          }
+
           setState(() {
             _analysisJson = json;
+            _error = null;
+            _rawBackendMessage = null;
           });
+
           await _fetchAnalysisHistory();
+          
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Analiz başarıyla tamamlandı!')),
+              const SnackBar(
+                content: Text('Analiz başarıyla tamamlandı!'),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+              ),
             );
           }
         } catch (e) {
           setState(() {
-            _error = 'Analiz sonucu okunamadı. Lütfen tekrar deneyin.';
+            _error = 'Analiz sonucu işlenirken hata oluştu: ${e.toString()}';
+            _rawBackendMessage = data['analysis_report'];
           });
         }
       } else {
+        final errorData = jsonDecode(response.body);
         setState(() {
-          _error = 'Analiz başarısız: ${response.body}';
+          _error = 'Analiz başarısız: ${errorData['detail'] ?? response.body}';
         });
       }
     } catch (e) {
@@ -137,22 +195,22 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
     }
   }
 
-  Widget _buildSummaryCard(String summary) {
+  Widget _buildSummaryCard(String summary, ThemeData theme) {
     return Card(
-      color: Colors.blue[50],
+      color: theme.colorScheme.primaryContainer.withOpacity(0.18),
       elevation: 4,
-      margin: const EdgeInsets.only(top: 16, bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.emoji_events, color: Colors.blue, size: 32),
-            const SizedBox(width: 16),
+            Icon(Icons.emoji_events, color: theme.colorScheme.primary, size: 38),
+            const SizedBox(width: 18),
             Expanded(
               child: Text(
                 summary,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: Colors.black87),
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, height: 1.5),
               ),
             ),
           ],
@@ -161,29 +219,26 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildChipSection(String title, List<dynamic> items, Color color, IconData icon) {
-    if (items.isEmpty) return const SizedBox.shrink();
+  Widget _buildChipsSection(String title, List<String> items, Color color, IconData icon) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 8.0, bottom: 6, top: 10),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 6),
-              Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-            ],
-          ),
+        Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 8),
+            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color)),
+          ],
         ),
+        const SizedBox(height: 8),
         Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: items.map((e) => Chip(
-            label: Text(e.toString()),
-            backgroundColor: color.withOpacity(0.15),
-            labelStyle: const TextStyle(fontSize: 14),
-            side: BorderSide(color: color.withOpacity(0.4)),
+          spacing: 10,
+          runSpacing: 8,
+          children: items.map((item) => Chip(
+            label: Text(item),
+            backgroundColor: color.withOpacity(0.13),
+            labelStyle: const TextStyle(fontSize: 13),
+            avatar: Icon(icon, color: color, size: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           )).toList(),
         ),
@@ -191,69 +246,233 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildSuggestionList(List<dynamic> items) {
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Card(
-      color: Colors.green[50],
-      elevation: 2,
-      margin: const EdgeInsets.only(top: 18, bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSuggestions(List<String> suggestions, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: const [
-                Icon(Icons.tips_and_updates, color: Colors.green, size: 22),
-                SizedBox(width: 8),
-                Text('Öneriler', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ...items.map((e) => Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 18),
-                const SizedBox(width: 6),
-                Expanded(child: Text(e.toString(), style: const TextStyle(fontSize: 15))),
-              ],
-            )).toList(),
+            Icon(Icons.lightbulb, color: theme.colorScheme.secondary, size: 22),
+            const SizedBox(width: 8),
+            Text('Öneriler', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: theme.colorScheme.secondary)),
           ],
         ),
+        const SizedBox(height: 8),
+        ...suggestions.map((oneri) => Card(
+          color: theme.colorScheme.secondaryContainer.withOpacity(0.13),
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          child: ListTile(
+            leading: Icon(Icons.arrow_right, color: theme.colorScheme.secondary),
+            title: Text(oneri, style: theme.textTheme.bodyMedium),
+          ),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildDetails(List<Map<String, dynamic>> details, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.analytics, color: Colors.deepPurple, size: 22),
+            const SizedBox(width: 8),
+            Text('Detaylı Analizler', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.deepPurple)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...details.map((detay) => Card(
+          color: Colors.deepPurple.withOpacity(0.07),
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          child: Padding(
+            padding: const EdgeInsets.all(14.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(detay['baslik'] ?? '', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(detay['icerik'] ?? '', style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+              ],
+            ),
+          ),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildAnalysisResult() {
+    final theme = Theme.of(context);
+    if (_error != null && _error!.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Card(
+          color: Colors.red[50],
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.error_outline, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Hata', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(_error!, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (_rawBackendMessage != null && _rawBackendMessage!.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Card(
+          color: Colors.yellow[50],
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.info_outline, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Backend Yanıtı', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Text(_rawBackendMessage!, style: theme.textTheme.bodyMedium),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (_analysisJson == null ||
+        (_analysisJson!["ozet"] == "" &&
+         (_analysisJson!["guclu_yonler"] == null || (_analysisJson!["guclu_yonler"] as List).isEmpty) &&
+         (_analysisJson!["gelisim_alanlari"] == null || (_analysisJson!["gelisim_alanlari"] as List).isEmpty) &&
+         (_analysisJson!["oneriler"] == null || (_analysisJson!["oneriler"] as List).isEmpty) &&
+         (_analysisJson!["detaylar"] == null || (_analysisJson!["detaylar"] as List).isEmpty))) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          children: [
+            Icon(Icons.info, size: 60, color: Colors.blueGrey[200]),
+            const SizedBox(height: 16),
+            Text(
+              'Analiz için profil kartlarınızı eksiksiz doldurun.\nTüm kartlar doluysa ve yine de analiz çıkmıyorsa, lütfen tekrar deneyin.',
+              style: theme.textTheme.bodyMedium?.copyWith(color: Colors.blueGrey[700]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+    if (_analysisJson != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSummaryCard(_analysisJson!["ozet"] ?? '', theme),
+          const SizedBox(height: 18),
+          _buildChipsSection("Güçlü Yönler", List<String>.from(_analysisJson!["guclu_yonler"] ?? []), Colors.green, Icons.star),
+          const SizedBox(height: 18),
+          _buildChipsSection("Gelişim Alanları", List<String>.from(_analysisJson!["gelisim_alanlari"] ?? []), Colors.orange, Icons.trending_up),
+          const SizedBox(height: 18),
+          _buildSuggestions(List<String>.from(_analysisJson!["oneriler"] ?? []), theme),
+          const SizedBox(height: 18),
+          _buildDetails(List<Map<String, dynamic>>.from(_analysisJson!["detaylar"] ?? []), theme),
+          const SizedBox(height: 28),
+          Center(
+            child: Text(
+              "Bu rapor, sağladığınız bilgilere dayanarak yapay zeka tarafından oluşturulmuştur.",
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: Colors.blueGrey[700]),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildStartAnalysisButton() {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        icon: Icon(Icons.analytics, color: Colors.white),
+        label: Text(
+          _isLoading ? "Analiz Yapılıyor..." : "Analizi Başlat",
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: theme.colorScheme.primary,
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 4,
+        ),
+        onPressed: _isLoading ? null : _startAnalysis,
       ),
     );
   }
 
-  Widget _buildDetailsSection(List<dynamic> details) {
-    if (details.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 8.0, bottom: 6, top: 10),
-          child: Text('Detaylı Analiz', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        ),
-        ...details.map((d) {
-          final baslik = d['baslik'] ?? '';
-          final icerik = d['icerik'] ?? '';
-          return Card(
-            color: Colors.white,
-            elevation: 1,
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            child: ExpansionTile(
-              title: Text(baslik, style: const TextStyle(fontWeight: FontWeight.w600)),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Text(icerik, style: const TextStyle(fontSize: 15)),
+  Widget _buildError(String error) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Card(
+        color: theme.colorScheme.errorContainer.withOpacity(0.15),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, color: theme.colorScheme.error, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                "Bir hata oluştu",
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.error,
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
-          );
-        }).toList(),
-      ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error,
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.refresh),
+                label: const Text("Tekrar Dene"),
+                onPressed: _startAnalysis,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -266,7 +485,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Profilini Analiz Et'),
+        title: const Text('Kariyer Analizi'),
         centerTitle: true,
       ),
       body: Container(
@@ -294,7 +513,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Hadi Profilini Analiz Edelim!',
+                    'Kariyer Analizi',
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Colors.blue[900],
@@ -303,92 +522,34 @@ class _AnalysisScreenState extends State<AnalysisScreen> with TickerProviderStat
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Güçlü ve gelişime açık yönlerini keşfet, kariyer yolculuğunda bir adım öne geç!',
+                    'Güçlü ve gelişime açık yönlerini keşfetmek için analizi başlat!',
                     style: theme.textTheme.bodyLarge?.copyWith(color: Colors.blueGrey[800]),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 18),
-                  if (_lastAnalysisDate != null)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.history, size: 20, color: Colors.blueGrey),
-                        const SizedBox(width: 8),
-                        Text('Son analiz: ${_lastAnalysisDate!.toLocal().toString().substring(0, 16)}',
-                            style: theme.textTheme.bodySmall?.copyWith(color: Colors.blueGrey)),
-                      ],
-                    ),
-                  const SizedBox(height: 18),
-                  AnimatedBuilder(
-                    animation: _buttonController,
-                    builder: (context, child) {
-                      return GestureDetector(
-                        onTap: _isLoading ? null : _startAnalysis,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          width: double.infinity,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: _isLoading
-                                  ? [Colors.blueGrey, Colors.blueGrey[200]!]
-                                  : [Colors.blue, Colors.cyan],
-                            ),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.withOpacity(0.2),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: _isLoading
-                                ? Lottie.asset(
-                                    'assets/lottie/loading.json',
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.contain,
-                                  )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Icon(Icons.analytics, color: Colors.white, size: 28),
-                                      SizedBox(width: 10),
-                                      Text(
-                                        'Analiz Et',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 20,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  if (_error != null)
+                  const SizedBox(height: 24),
+                  _buildStartAnalysisButton(),
+                  const SizedBox(height: 24),
+                  if (_isLoading)
+                    Lottie.asset('assets/lottie/loading.json', width: 80, height: 80),
+                  if (!_isLoading && _error != null && _error!.isNotEmpty)
+                    _buildError(_error!),
+                  if (!_isLoading && _analysisJson != null && (_error == null || _error!.isEmpty))
+                    _buildAnalysisResult(),
+                  if (!_isLoading && _analysisJson == null && (_error == null || _error!.isEmpty))
                     Padding(
-                      padding: const EdgeInsets.only(top: 18.0),
-                      child: Card(
-                        color: Colors.red[50],
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Text(_error!, style: const TextStyle(color: Colors.red)),
-                        ),
+                      padding: const EdgeInsets.only(top: 32.0),
+                      child: Column(
+                        children: [
+                          Icon(Icons.info_outline, size: 80, color: Colors.blueGrey[200]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Analiz başlatılmadı. Analiz için yukarıdaki butona tıkla!',
+                            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.blueGrey[700]),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
-                  if (_analysisJson != null) ...[
-                    _buildSummaryCard(_analysisJson!["ozet"] ?? ""),
-                    _buildChipSection("Güçlü Yönler", _analysisJson!["guclu_yonler"] ?? [], Colors.blue, Icons.thumb_up_alt),
-                    _buildChipSection("Gelişim Alanları", _analysisJson!["gelisim_alanlari"] ?? [], Colors.orange, Icons.trending_up),
-                    _buildSuggestionList(_analysisJson!["oneriler"] ?? []),
-                    _buildDetailsSection(_analysisJson!["detaylar"] ?? []),
-                  ],
                   const SizedBox(height: 32),
                 ],
               ),

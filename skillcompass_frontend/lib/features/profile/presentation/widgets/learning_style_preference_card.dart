@@ -7,6 +7,8 @@ class LearningStylePreferenceCard extends StatelessWidget {
   final bool showCustomPreferenceInput;
   final TextEditingController customPreferenceController;
   final String customPreference;
+  final List<String> customPreferenceList;
+  final Function(String) onCustomDelete;
   final Color mainBlue;
   final Color gold;
   final Color cloudGrey;
@@ -21,6 +23,8 @@ class LearningStylePreferenceCard extends StatelessWidget {
     required this.showCustomPreferenceInput,
     required this.customPreferenceController,
     required this.customPreference,
+    required this.customPreferenceList,
+    required this.onCustomDelete,
     required this.mainBlue,
     required this.gold,
     required this.cloudGrey,
@@ -116,6 +120,17 @@ class LearningStylePreferenceCard extends StatelessWidget {
               ),
             ],
           ),
+          if (customPreferenceList.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, bottom: 2.0),
+              child: Wrap(
+                spacing: 8,
+                children: customPreferenceList.map((pref) => Chip(
+                  label: Text(pref),
+                  onDeleted: () => onCustomDelete(pref),
+                )).toList(),
+              ),
+            ),
         ],
         const SizedBox(height: 10),
         Text(

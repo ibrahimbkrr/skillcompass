@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';
-import 'widgets/identity_status_header.dart';
-import 'widgets/animated_question_card.dart';
+import '../../profile/services/profile_service.dart';
+import 'widgets/common/profile_progress_header.dart';
+import 'widgets/common/animated_question_card.dart';
 import 'widgets/identity_story_card.dart';
 import 'widgets/identity_motivation_card.dart';
 import 'widgets/identity_impact_card.dart';
 import 'widgets/identity_clarity_card.dart';
 import 'widgets/identity_status_actions.dart';
+import 'dart:async';
 
 class IdentityStatusCardScreen extends StatefulWidget {
   const IdentityStatusCardScreen({super.key});
@@ -51,6 +52,7 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
   int _completedCount = 0;
   bool _showInspire = false;
   String? _inspireText;
+  Timer? _inspireTimer;
 
   // --- Animation ---
   late AnimationController _animController;
@@ -93,6 +95,8 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
     'İnovasyon ve Araştırma': Icons.lightbulb,
   };
 
+  final ProfileService _profileService = ProfileService();
+
   @override
   void initState() {
     super.initState();
@@ -106,23 +110,21 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
   }
 
   Future<void> _fetchExistingData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('user_profile')
-        .doc('identity_status_v2')
-        .get();
-    if (doc.exists) {
-      final data = doc.data() ?? {};
+    try {
+      final data = await _profileService.loadIdentityStatus();
+      if (data != null) {
+        setState(() {
+          _storyController.text = data['story'] ?? '';
+          _selectedMotivations = List<String>.from(data['motivations'] ?? []);
+          _customMotivationController.text = data['custom_motivation'] ?? '';
+          _showCustomMotivation = data['custom_motivation'] != null && data['custom_motivation'].toString().isNotEmpty;
+          _selectedImpact = data['impact'];
+          _clarity = (data['clarity'] ?? 50).toDouble();
+        });
+      }
+    } catch (e) {
       setState(() {
-        _storyController.text = data['story'] ?? '';
-        _selectedMotivations = List<String>.from(data['motivations'] ?? []);
-        _customMotivationController.text = data['custom_motivation'] ?? '';
-        _showCustomMotivation = data['custom_motivation'] != null && data['custom_motivation'].toString().isNotEmpty;
-        _selectedImpact = data['impact'];
-        _clarity = (data['clarity'] ?? 50).toDouble();
+        _errorText = 'Profil verisi yüklenemedi: $e';
       });
     }
   }
@@ -132,6 +134,8 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
     _animController.dispose();
     _storyController.dispose();
     _customMotivationController.dispose();
+    _inspireTimer?.cancel();
+    _inspireTimer = null;
     super.dispose();
   }
 
@@ -144,7 +148,7 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
   void _updateCompletedCount() {
     int count = 0;
     if (_storyController.text.trim().length >= 10) count++;
-    if (_selectedMotivations.isNotEmpty || (_showCustomMotivation && _customMotivationController.text.trim().isNotEmpty)) count++;
+    if (_selectedMotivations.isNotEmpty) count++;
     if (_selectedImpact != null) count++;
     count++; // Slider her zaman tamamlanmış sayılır
     setState(() => _completedCount = count);
@@ -155,7 +159,8 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
       _inspireText = (_inspireExamples..shuffle()).first;
       _showInspire = true;
     });
-    Future.delayed(const Duration(milliseconds: 3000), () {
+    _inspireTimer?.cancel();
+    _inspireTimer = Timer(const Duration(milliseconds: 5000), () {
       if (mounted) setState(() => _showInspire = false);
     });
   }
@@ -170,14 +175,6 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
       _errorText = null;
     });
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() {
-          _isSaving = false;
-          _errorText = 'Kullanıcı oturumu bulunamadı.';
-        });
-        return;
-      }
       final List<String> motivationsToSave = List.from(_selectedMotivations);
       String? customMotivation;
       if (_showCustomMotivation && _customMotivationController.text.trim().isNotEmpty) {
@@ -191,18 +188,13 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
         'impact': _selectedImpact,
         'clarity': _clarity.round(),
       };
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('user_profile')
-          .doc('identity_status_v2')
-          .set(data, SetOptions(merge: true));
+      await _profileService.saveIdentityStatus(data);
       setState(() {
         _isSaving = false;
         _showSuccess = true;
       });
       await Future.delayed(const Duration(milliseconds: 900));
-      if (mounted) Navigator.of(context).pop(true); // Sonraki karta geçiş için
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() {
         _isSaving = false;
@@ -232,7 +224,7 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
     int totalSteps = 4;
     int completedSteps = 0;
     if (_storyController.text.trim().length >= 10) completedSteps++;
-    if (_selectedMotivations.isNotEmpty || (_showCustomMotivation && _customMotivationController.text.trim().isNotEmpty)) completedSteps++;
+    if (_selectedMotivations.isNotEmpty) completedSteps++;
     if (_selectedImpact != null) completedSteps++;
     completedSteps++; // Slider her zaman tamamlanmış sayılır
     final double progress = completedSteps / totalSteps;
@@ -253,29 +245,36 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
           ),
           if (_showInspire && _inspireText != null)
             Center(
-              child: AnimatedOpacity(
-                opacity: _showInspire ? 1 : 0,
-                duration: const Duration(milliseconds: 400),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  decoration: BoxDecoration(
-                    color: accentBlue.withOpacity(0.95),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accentBlue.withOpacity(0.18),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    _inspireText!,
-                    style: GoogleFonts.inter(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w600),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 500),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: _showInspire && _inspireText != null
+                    ? Container(
+                        key: ValueKey(_inspireText),
+                        constraints: const BoxConstraints(maxWidth: 340),
+                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                        decoration: BoxDecoration(
+                          color: accentBlue.withOpacity(0.97),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentBlue.withOpacity(0.18),
+                              blurRadius: 28,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _inspireText!,
+                          style: GoogleFonts.inter(fontSize: 17, color: Colors.white, fontWeight: FontWeight.w600, height: 1.35),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
             ),
           SafeArea(
@@ -306,14 +305,17 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            IdentityStatusHeader(
+                            ProfileProgressHeader(
                               completedSteps: completedSteps,
                               totalSteps: totalSteps,
                               progress: progress,
-                              mainBlue: mainBlue,
-                              cloudGrey: cloudGrey,
-                              accentBlue: accentBlue,
+                              mainColor: mainBlue,
+                              accentColor: accentCoral,
                               cardWidth: cardWidth,
+                              icon: Icons.explore,
+                              title: 'Kimsiniz ve Neredesiniz?',
+                              description: 'Bilişim dünyasındaki yerinizi tarif edin. Kendinizi nasıl görüyorsunuz, neyi temsil ediyorsunuz? Bu, kariyer yolculuğunuzun başlangıç noktası.',
+                              subtitle: 'Hikayenizi anlatın, yolculuğunuzu birlikte şekillendirelim!',
                             ),
                             const SizedBox(height: 18),
                             AnimatedQuestionCard(
@@ -343,7 +345,10 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
                                   setState(() {
                                     if (motivation == 'Diğer') {
                                       _showCustomMotivation = val;
-                                      if (!val) _customMotivationController.clear();
+                                      if (!val) {
+                                        _customMotivationController.clear();
+                                        _selectedMotivations.removeWhere((m) => !_motivationOptions.contains(m));
+                                      }
                                     } else {
                                       if (val && _selectedMotivations.length < 3) {
                                         _selectedMotivations.add(motivation);
@@ -355,8 +360,7 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
                                   });
                                 },
                                 onCustomMotivationChanged: (_) {
-                                  setState(() {});
-                                  _updateCompletedCount();
+                                  setState(() {}); // Sadece textbox'ı güncelle, listeye ekleme
                                 },
                               ),
                             ),

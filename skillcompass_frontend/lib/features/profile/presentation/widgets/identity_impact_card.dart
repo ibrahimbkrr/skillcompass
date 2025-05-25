@@ -24,7 +24,7 @@ class IdentityImpactCard extends StatelessWidget {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           isExpanded: true,
-          value: selectedImpact,
+          value: (selectedImpact != null && impactOptions.contains(selectedImpact)) ? selectedImpact : null,
           items: [
             const DropdownMenuItem<String>(value: null, child: Text('Seçiniz', maxLines: 1, overflow: TextOverflow.ellipsis)),
             ...impactOptions.map((e) => DropdownMenuItem<String>(

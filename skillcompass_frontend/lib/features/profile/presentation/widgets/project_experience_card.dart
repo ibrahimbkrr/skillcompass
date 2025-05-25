@@ -8,6 +8,7 @@ import 'project_experience_technologies.dart';
 import 'project_experience_future_goal.dart';
 import 'project_experience_challenges.dart';
 import 'project_experience_progress_actions.dart';
+import 'package:skillcompass_frontend/features/profile/services/profile_service.dart';
 
 class ProjectExperienceCard extends StatefulWidget {
   const ProjectExperienceCard({super.key});
@@ -93,16 +94,8 @@ class _ProjectExperienceCardState extends State<ProjectExperienceCard> with Sing
   Future<void> _fetchData() async {
     setState(() { _isLoading = true; _error = null; });
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Oturum bulunamadı');
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('user_profile')
-          .doc('project_experience')
-          .get();
-      if (doc.exists) {
-        final data = doc.data()!;
+      final data = await ProfileService().loadProjectExperience();
+      if (data != null) {
         setState(() {
           _pastProjects = data['past_projects'] ?? '';
           _technologies = List<String>.from(data['technologies'] ?? []);
@@ -122,17 +115,13 @@ class _ProjectExperienceCardState extends State<ProjectExperienceCard> with Sing
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Oturum bulunamadı');
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('user_profile')
-          .doc('project_experience')
-          .set({
+      final data = {
         'past_projects': _pastProjects,
         'technologies': _technologies,
         'future_project': _futureGoal,
         'challenges': _challenges,
-      });
+      };
+      await ProfileService().saveProjectExperience(data);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Proje deneyimi kaydedildi!', style: GoogleFonts.inter()), backgroundColor: Colors.green),

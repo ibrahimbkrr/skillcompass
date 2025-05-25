@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../profile/services/profile_service.dart';
+import 'widgets/common/themed_card_header.dart';
+import 'widgets/common/themed_back_button.dart';
+import 'widgets/common/animated_question_card.dart';
+import 'widgets/common/inspiration_popup.dart';
+import 'widgets/common/profile_progress_header.dart';
+import 'dart:async';
 
 class TechnicalProfileCardScreen extends StatefulWidget {
   const TechnicalProfileCardScreen({super.key});
@@ -22,11 +28,11 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
   static const Color successGreen = Color(0xFF38A169);
   static const Color darkGrey = Color(0xFF4A4A4A);
   static const Color neonTurquoise = Color(0xFF00D4B4); // Neon Turkuaz
+  static const Color gold = Color(0xFFFFD700); // Gold
 
   // --- Animation ---
   late AnimationController _animController;
-  late Animation<double> _headerAnim;
-  late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
 
   // --- Soru 1 State ---
   final Map<String, List<String>> _skillCategories = {
@@ -51,9 +57,6 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
     "AWS ile bulut altyapısı kurma.",
     "Flutter ile mobil uygulama geliştirme.",
   ];
-  final LayerLink _highlightLink = LayerLink();
-  OverlayEntry? _highlightOverlay;
-  int _currentHighlightIndex = 0;
 
   // --- Soru 3 State ---
   final List<String> _learningApproaches = [
@@ -79,87 +82,74 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
     return count;
   }
 
+  final ProfileService _profileService = ProfileService();
+
+  // --- Soru 2 İlham Popup State ---
+  bool _showInspire = false;
+  String? _inspireText;
+  int _inspireIndex = 0;
+  Timer? _inspireTimer;
+
   @override
   void initState() {
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 900),
     );
-    _headerAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic);
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeIn);
+    _scaleAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOutBack);
     _animController.forward();
     _fetchExistingData();
   }
 
   Future<void> _fetchExistingData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('user_profile')
-        .doc('technical_profile_v2')
-        .get();
-    if (doc.exists) {
-      final data = doc.data() ?? {};
-      setState(() {
-        _selectedSkills.clear();
-        _selectedSkills.addAll(List<String>.from(data['skills'] ?? []));
-        _highlightSkill = data['highlight_skill'] ?? '';
-        _highlightSkillController.text = _highlightSkill;
-        _selectedLearningApproach = data['learning_approach'];
-        _confidence = (data['confidence'] ?? 50).toDouble();
-      });
+    try {
+      final data = await _profileService.loadTechnicalProfile();
+      if (data != null) {
+        setState(() {
+          _selectedSkills.clear();
+          _selectedSkills.addAll(List<String>.from(data['skills'] ?? []));
+          _highlightSkill = data['highlight_skill'] ?? '';
+          _highlightSkillController.text = _highlightSkill;
+          _selectedLearningApproach = data['learning_approach'];
+          _confidence = (data['confidence'] ?? 50).toDouble();
+        });
+      }
+    } catch (e) {
+      // Hata yönetimi
+      // setState(() { _errorText = 'Teknik profil verisi yüklenemedi: $e'; });
     }
   }
 
   Future<void> _saveData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
     final data = {
       'skills': _selectedSkills,
       'highlight_skill': _highlightSkill.trim(),
       'learning_approach': _selectedLearningApproach,
       'confidence': _confidence.round(),
     };
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('user_profile')
-        .doc('technical_profile_v2')
-        .set(data, SetOptions(merge: true));
-    if (mounted) Navigator.of(context).pop(true); // Sonraki karta geçiş için
+    try {
+      await _profileService.saveTechnicalProfile(data);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      // Hata yönetimi
+      // setState(() { _errorText = 'Kayıt hatası: $e'; });
+    }
   }
 
   void _showHighlightInspirationPopup() {
-    if (_highlightOverlay != null) {
-      setState(() {
-        _currentHighlightIndex = (_currentHighlightIndex + 1) % _highlightExamples.length;
-      });
-      _highlightOverlay?.markNeedsBuild();
-      return;
-    }
-    _highlightOverlay = OverlayEntry(
-      builder: (context) => _InspirationOverlay(
-        link: _highlightLink,
-        example: _highlightExamples[_currentHighlightIndex],
-        title: 'İlham Önerisi',
-        onClose: _hideHighlightInspirationPopup,
-      ),
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _highlightLink.leader != null) {
-        Overlay.of(context)?.insert(_highlightOverlay!);
-      }
-    });
-  }
-
-  void _hideHighlightInspirationPopup() {
-    _highlightOverlay?.remove();
-    _highlightOverlay = null;
+    if (_highlightExamples.isEmpty) return;
+    _inspireTimer?.cancel();
     setState(() {
-      _currentHighlightIndex = 0;
+      _inspireText = (_highlightExamples..shuffle()).first;
+      _showInspire = true;
+    });
+    _inspireTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _showInspire = false;
+        });
+      }
     });
   }
 
@@ -168,7 +158,8 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
     _animController.dispose();
     _customSkillController.dispose();
     _highlightSkillController.dispose();
-    _hideHighlightInspirationPopup();
+    _inspireTimer?.cancel();
+    _inspireTimer = null;
     super.dispose();
   }
 
@@ -195,6 +186,11 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
 
     return Scaffold(
       backgroundColor: bgSoftWhite,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: ThemedBackButton(),
+      ),
       body: Stack(
         children: [
           Container(
@@ -212,7 +208,7 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
                   child: ScaleTransition(
-                    scale: _headerAnim,
+                    scale: _scaleAnim,
                     child: Container(
                       width: cardWidth,
                       constraints: BoxConstraints(maxWidth: maxCardWidth),
@@ -232,60 +228,19 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // --- Üst Kısım: Simge, Başlık, Açıklama, Rehber ---
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [mainBlue, neonTurquoise],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Icon(Icons.build, color: Colors.white, size: 36),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Teknik Yetkinliklerinizi Tanımlayın',
-                                        style: GoogleFonts.inter(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 30,
-                                          color: mainBlue,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Bilişim dünyasındaki beceri setinizi ve öğrenme yaklaşımınızı paylaşın. Bu, size özel bir gelişim haritası oluşturmamızı sağlayacak.',
-                                      style: GoogleFonts.inter(fontSize: 16, color: cloudGrey),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.code, color: neonTurquoise, size: 28),
-                                onPressed: () => _showGuide(context),
-                                tooltip: 'Rehber',
-                              ),
-                            ],
+                          ProfileProgressHeader(
+                            completedSteps: _completedCount,
+                            totalSteps: 4,
+                            progress: _completedCount / 4,
+                            mainColor: mainBlue,
+                            accentColor: gold,
+                            cardWidth: cardWidth,
+                            icon: Icons.engineering,
+                            title: 'Teknik Profil',
+                            description: 'Teknik becerilerinizi, öne çıkan yeteneklerinizi ve öğrenme yaklaşımınızı paylaşın.',
                           ),
-                          const SizedBox(height: 10),
-                          Text('Araç kutunuzu açın, becerilerinizi sergileyin!',
-                            style: GoogleFonts.inter(fontSize: 15, color: mainBlue, fontWeight: FontWeight.w600)),
                           const SizedBox(height: 18),
-                          // --- Soru 1: Teknik Araç Kutunuzda Neler Var? ---
-                          _AnimatedQuestionCard(
+                          AnimatedQuestionCard(
                             completed: _selectedSkills.isNotEmpty,
                             borderColor: _selectedSkills.isNotEmpty ? neonTurquoise : cloudGrey,
                             child: Column(
@@ -464,8 +419,8 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                           ),
                           // --- Soru 2: Hangi Beceri Sizi Parlatıyor? ---
                           FadeTransition(
-                            opacity: _fadeAnim,
-                            child: _AnimatedQuestionCard(
+                            opacity: _scaleAnim,
+                            child: AnimatedQuestionCard(
                               completed: _highlightSkill.trim().length >= 10,
                               borderColor: _highlightSkill.trim().length >= 10 ? neonTurquoise : cloudGrey,
                               child: Column(
@@ -480,16 +435,13 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                                       const SizedBox(width: 8),
                                       GestureDetector(
                                         onTap: _showHighlightInspirationPopup,
-                                        child: CompositedTransformTarget(
-                                          link: _highlightLink,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: mainBlue.withOpacity(0.08),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(Icons.lightbulb, color: neonTurquoise, size: 20, semanticLabel: 'İlham önerisi göster'),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: mainBlue.withOpacity(0.08),
+                                            borderRadius: BorderRadius.circular(8),
                                           ),
+                                          child: Icon(Icons.auto_awesome, color: neonTurquoise, size: 20, semanticLabel: 'İlham önerisi göster'),
                                         ),
                                       ),
                                     ],
@@ -515,6 +467,23 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                                     ),
                                     onChanged: (val) => setState(() => _highlightSkill = val),
                                   ),
+                                  // İlham popup'ı kimlik durumu kartındaki gibi, TextField'ın hemen altında
+                                  if (_showInspire && _inspireText != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: AnimatedOpacity(
+                                        opacity: _showInspire ? 1 : 0,
+                                        duration: const Duration(milliseconds: 300),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: mainBlue.withOpacity(0.08),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(_inspireText!, style: GoogleFonts.inter(fontSize: 14)),
+                                        ),
+                                      ),
+                                    ),
                                   const SizedBox(height: 6),
                                   Text('Sizi tanımlayan veya en gurur duyduğunuz beceriyi tarif edin. Bu, sizi neyin farklı kıldığını gösterir.',
                                     style: GoogleFonts.inter(fontSize: 14, color: lightBlue)),
@@ -524,8 +493,8 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                           ),
                           // --- Soru 3: Teknik Öğrenme Yaklaşımınız Nedir? ---
                           FadeTransition(
-                            opacity: _fadeAnim,
-                            child: _AnimatedQuestionCard(
+                            opacity: _scaleAnim,
+                            child: AnimatedQuestionCard(
                               completed: _selectedLearningApproach != null,
                               borderColor: _selectedLearningApproach != null ? neonTurquoise : cloudGrey,
                               child: Column(
@@ -536,7 +505,7 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                                   const SizedBox(height: 8),
                                   DropdownButtonFormField<String>(
                                     isExpanded: true,
-                                    value: _selectedLearningApproach,
+                                    value: (_selectedLearningApproach != null && _learningApproaches.contains(_selectedLearningApproach)) ? _selectedLearningApproach : null,
                                     items: [
                                       const DropdownMenuItem<String>(value: null, child: Text('Seçiniz', maxLines: 1, overflow: TextOverflow.ellipsis)),
                                       ..._learningApproaches.map((e) => DropdownMenuItem<String>(
@@ -567,8 +536,8 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                           ),
                           // --- Soru 4: Teknik Güven Seviyeniz Nedir? ---
                           FadeTransition(
-                            opacity: _fadeAnim,
-                            child: _AnimatedQuestionCard(
+                            opacity: _scaleAnim,
+                            child: AnimatedQuestionCard(
                               completed: true,
                               borderColor: neonTurquoise,
                               child: Column(
@@ -602,48 +571,6 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                             ),
                           ),
                           const SizedBox(height: 18),
-                          // --- Progress bar ve butonlar ---
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Stack(
-                                  children: [
-                                    Container(
-                                      height: 7,
-                                      decoration: BoxDecoration(
-                                        color: cloudGrey,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                    AnimatedContainer(
-                                      duration: const Duration(milliseconds: 400),
-                                      height: 7,
-                                      width: (cardWidth - 40) * progress,
-                                      decoration: BoxDecoration(
-                                        color: mainBlue,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Icon(Icons.code, color: mainBlue, size: 20),
-                              const SizedBox(width: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: mainBlue,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  '2/7', // Sabit, ileride dinamik yapılabilir
-                                  style: GoogleFonts.inter(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
                           SizedBox(
                             width: double.infinity,
                             height: 52,
@@ -663,15 +590,6 @@ class _TechnicalProfileCardScreenState extends State<TechnicalProfileCardScreen>
                           ),
                           const SizedBox(height: 8),
                           Text('Tüm sorulara yanıt vererek en iyi sonucu alın.', style: GoogleFonts.inter(fontSize: 14, color: lightBlue)),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: IconButton(
-                              icon: const Icon(Icons.arrow_back_ios_new_rounded, color: lightBlue, size: 24),
-                              onPressed: () => Navigator.of(context).maybePop(),
-                              tooltip: 'Geri',
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -761,80 +679,6 @@ class _AnimatedQuestionCard extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _InspirationOverlay extends StatelessWidget {
-  final LayerLink link;
-  final String example;
-  final String title;
-  final VoidCallback onClose;
-
-  const _InspirationOverlay({
-    Key? key,
-    required this.link,
-    required this.example,
-    required this.title,
-    required this.onClose,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return CompositedTransformFollower(
-      link: link,
-      showWhenUnlinked: false,
-      offset: const Offset(0, 10),
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 20, color: _TechnicalProfileCardScreenState.mainBlue)),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: _TechnicalProfileCardScreenState.cloudGrey, size: 24),
-                    onPressed: onClose,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(example, style: GoogleFonts.inter(fontSize: 16, color: _TechnicalProfileCardScreenState.darkGrey)),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: onClose,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _TechnicalProfileCardScreenState.neonTurquoise,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  child: const Text('Kapat'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 } 

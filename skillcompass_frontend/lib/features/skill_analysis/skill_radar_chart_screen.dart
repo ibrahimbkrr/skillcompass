@@ -235,10 +235,18 @@ class _SkillRadarChartScreenState extends State<SkillRadarChartScreen> {
                         children: [
                       Icon(Icons.circle, size: 8, color: color.withOpacity(0.7)),
                           const SizedBox(width: 8),
-                      Expanded(child: Text(item, style: theme.textTheme.bodyMedium)),
-                    ],
-                  ),
-                )),
+                          Flexible(
+                            child: Text(
+                              item,
+                              style: theme.textTheme.bodyMedium,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                              softWrap: false,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
               ],
             ),
           ),

@@ -16,8 +16,7 @@ import 'package:skillcompass_frontend/core/theme/theme_provider.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_button.dart';
 import 'package:skillcompass_frontend/core/widgets/custom_snackbar.dart';
 import 'widgets/dashboard_profile_card.dart';
-import 'package:skillcompass_frontend/features/dashboard/presentation/analysis_screen.dart';
-import 'package:skillcompass_frontend/features/skill_analysis/skill_radar_chart_screen.dart';
+import 'package:skillcompass_frontend/features/analysis/presentation/analysis_report_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -260,7 +259,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {
         'title': 'Analiz Et',
         'icon': Icons.bar_chart,
-        'route': const SkillRadarChartScreen(),
+        'route': const AnalysisReportScreen(),
         'color': Colors.red,
       },
     ];

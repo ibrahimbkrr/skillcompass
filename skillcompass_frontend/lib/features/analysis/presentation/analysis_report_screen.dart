@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
 import 'package:skillcompass_frontend/features/dashboard/presentation/services/analysis_service.dart';
+import 'package:skillcompass_frontend/features/analysis/model/analysis_model.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Artık doğrudan Firestore işlemi yapmıyoruz
 // import 'package:intl/intl.dart'; // Tarih formatlama için şimdilik gerek yok
 
@@ -16,8 +17,7 @@ class AnalysisReportScreen extends StatefulWidget {
 class _AnalysisReportScreenState extends State<AnalysisReportScreen> {
   bool _isLoading = true;
   String _error = '';
-  List<ProgressStep> _progress = [];
-  Map<String, dynamic>? _analysisData;
+  AnalizModel? _analiz;
 
   @override
   void initState() {
@@ -26,304 +26,279 @@ class _AnalysisReportScreenState extends State<AnalysisReportScreen> {
   }
 
   Future<void> _startAnalysis() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final analysisService = AnalysisService(authProvider);
-
+    setState(() {
+      _isLoading = true;
+      _error = '';
+    });
     try {
-      setState(() {
-        _isLoading = true;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final response = await AnalysisService(authProvider).startAnalysis(context);
+      if (response.status == 'success') {
+        _analiz = AnalizModel.fromJson(response.data!);
         _error = '';
-      });
-
-      final response = await analysisService.startAnalysis();
-      print('DEBUG ANALYSIS RESPONSE: ' + response.toString());
-
-      setState(() {
-        _progress = response.progress;
-        if (response.status == 'success') {
-          _analysisData = response.data;
-          _error = '';
-        } else {
-          _error = response.message ?? 'Bilinmeyen bir hata oluştu';
-        }
-        _isLoading = false;
-      });
+      } else {
+        _error = response.message ?? 'Bilinmeyen bir hata oluştu';
+      }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+      _error = e.toString();
+    }
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Color _getCategoryColor(String ad) {
+    switch (ad) {
+      case "Kimlik": return Colors.blue;
+      case "Teknik Profil": return Colors.green;
+      case "Öğrenme Stili": return Colors.orange;
+      case "Kariyer Vizyonu": return Colors.purple;
+      case "Proje Deneyimleri": return Colors.amber;
+      case "Networking": return Colors.indigo;
+      case "Kişisel Marka": return Colors.deepPurple;
+      default: return Colors.grey;
     }
   }
 
-  Widget _buildProgressIndicator() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const CircularProgressIndicator(),
-        const SizedBox(height: 20),
-        if (_progress.isNotEmpty)
-          Column(
-            children: _progress.map((step) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                      size: 20,
+  IconData _getCategoryIcon(String ad) {
+    switch (ad) {
+      case "Kimlik": return Icons.person;
+      case "Teknik Profil": return Icons.code;
+      case "Öğrenme Stili": return Icons.school;
+      case "Kariyer Vizyonu": return Icons.work;
+      case "Proje Deneyimleri": return Icons.rocket_launch;
+      case "Networking": return Icons.wifi;
+      case "Kişisel Marka": return Icons.verified_user;
+      default: return Icons.info;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userName = Provider.of<AuthProvider>(context, listen: false).user?.displayName ?? 'Kullanıcı';
+    return Scaffold(
+      backgroundColor: const Color(0xFFB2FEFA),
+      appBar: AppBar(
+        title: const Text('Kapsamlı Profil Analizi'),
+        elevation: 1,
+        backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.blue),
+            onPressed: _startAnalysis,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error.isNotEmpty
+              ? Center(child: Text(_error))
+              : _analiz == null
+                  ? const Center(child: Text('Analiz verisi bulunamadı.'))
+                  : SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            // Özet Kartı
+                            _AnalysisSummaryCard(userName: userName, ozet: _analiz!.ozet),
+                            const SizedBox(height: 24),
+                            // Kategori Kartları Grid
+                            Wrap(
+                              spacing: 16,
+                              runSpacing: 16,
+                              children: _analiz!.kategoriler.map((cat) {
+                                final meta = getCategoryMeta(cat.ad);
+                                return SizedBox(
+                                  width: (MediaQuery.of(context).size.width - 48) / 2, // 2 sütunlu responsive
+                                  child: _AnalysisCategoryCard(cat: cat, meta: meta),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(step.message),
-                  ],
+    );
+  }
+}
+
+class _AnalysisSummaryCard extends StatelessWidget {
+  final String userName;
+  final String ozet;
+  const _AnalysisSummaryCard({required this.userName, required this.ozet});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 36,
+              backgroundColor: Colors.blue,
+              child: Text(userName[0].toUpperCase(), style: const TextStyle(fontSize: 32, color: Colors.white)),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(userName, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blue)),
+                  const SizedBox(height: 4),
+                  const Text("Kapsamlı Analiz Raporu", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 8),
+                  Chip(label: Text("Kariyer Yolculuğu Başladı!", style: TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.green),
+                  const SizedBox(height: 8),
+                  Text(ozet, style: const TextStyle(fontSize: 16)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AnalysisCategoryCard extends StatefulWidget {
+  final KategoriModel cat;
+  final CategoryMeta meta;
+  const _AnalysisCategoryCard({required this.cat, required this.meta});
+
+  @override
+  State<_AnalysisCategoryCard> createState() => _AnalysisCategoryCardState();
+}
+
+class _AnalysisCategoryCardState extends State<_AnalysisCategoryCard> {
+  bool showFull = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cat = widget.cat;
+    final meta = widget.meta;
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(backgroundColor: meta.color, child: Icon(meta.icon, color: Colors.white)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cat.ad,
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: meta.color),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Chip(
+                        label: Text(meta.badge, style: const TextStyle(color: Colors.white)),
+                        backgroundColor: meta.color,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            }).toList(),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _buildExpandableText(cat.aciklama, 3),
+            const SizedBox(height: 10),
+            _buildExpandableSection("Güçlü Yönler", cat.gucluYonler, meta.color),
+            _buildExpandableSection("Gelişim Alanları", cat.gelisimAlanlari, meta.color),
+            _buildExpandableSection("Öneriler", cat.oneriler, meta.color),
+            _buildExpandableTextSection("Motivasyon", cat.motivasyon, meta.color),
+            _buildExpandableTextSection("Örnek", cat.ornek, meta.color),
+            _buildExpandableSection("Kaynaklar", cat.kaynaklar, meta.color),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandableText(String text, int maxLines) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    final shouldShorten = text.split(' ').length > 20 && !showFull;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          text,
+          maxLines: shouldShorten ? maxLines : null,
+          overflow: shouldShorten ? TextOverflow.ellipsis : null,
+        ),
+        if (shouldShorten)
+          GestureDetector(
+            onTap: () => setState(() => showFull = true),
+            child: Text('Devamı...', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
           ),
       ],
     );
   }
 
-  Widget _buildErrorWidget() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.error_outline,
-            color: Colors.red,
-            size: 48,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Hata Oluştu',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _error,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _startAnalysis,
-            child: const Text('Tekrar Dene'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnalysisResult() {
-    print('DEBUG _analysisData: [33m[1m[4m' + _analysisData.toString() + '\u001b[0m');
-    if (_analysisData == null) return const SizedBox.shrink();
-
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+  Widget _buildExpandableSection(String title, List<String> items, Color color) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    final shouldShorten = items.length > 3 && !showFull;
+    final shownItems = shouldShorten ? items.take(3).toList() : items;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Özet
-          _buildSectionTitle(context, Icons.summarize, "Özet"),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: colorScheme.primaryContainer.withOpacity(0.3),
-              ),
+          Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+          ...shownItems.map((e) => Row(
+                children: [
+                  Icon(Icons.check_circle, color: color, size: 18),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(e)),
+                ],
+              )),
+          if (shouldShorten)
+            GestureDetector(
+              onTap: () => setState(() => showFull = true),
+              child: Text('Devamı...', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
             ),
-            child: Text(
-              _analysisData!['ozet'] ?? '',
-              style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Güçlü Yönler
-          _buildSectionTitle(context, Icons.star, "Güçlü Yönler"),
-          _buildChipList(
-            context,
-            List<String>.from(_analysisData!['guclu_yonler'] ?? []),
-            Colors.green,
-          ),
-
-          // Gelişim Alanları
-          _buildSectionTitle(context, Icons.trending_up, "Gelişim Alanları"),
-          _buildChipList(
-            context,
-            List<String>.from(_analysisData!['gelisim_alanlari'] ?? []),
-            Colors.orange,
-          ),
-
-          // Öneriler
-          _buildSectionTitle(context, Icons.lightbulb, "Öneriler"),
-          Column(
-            children: List<String>.from(_analysisData!['oneriler'] ?? [])
-                .map((oneri) => ListTile(
-                      leading: const Icon(Icons.arrow_right),
-                      title: Text(oneri),
-                      contentPadding: EdgeInsets.zero,
-                    ))
-                .toList(),
-          ),
-
-          // Detaylı Analizler
-          _buildSectionTitle(context, Icons.analytics, "Detaylı Analizler"),
-          Column(
-            children: List<Map<String, dynamic>>.from(
-                    _analysisData!['detaylar'] ?? [])
-                .map((detay) => Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              detay['baslik'] ?? '',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              detay['icerik'] ?? '',
-                              style: theme.textTheme.bodyMedium
-                                  ?.copyWith(height: 1.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ))
-                .toList(),
-          ),
-
-          const SizedBox(height: 30),
-
-          // Son Not
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blueGrey[50],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                "Bu rapor, sağladığınız bilgilere dayanarak yapay zeka tarafından oluşturulmuştur.",
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: Colors.blueGrey[700],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  // --- Yardımcı Widget: Bölüm Başlığı ---
-  Widget _buildSectionTitle(BuildContext context, IconData icon, String title) {
-    final theme = Theme.of(context);
+  Widget _buildExpandableTextSection(String title, String value, Color color) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    final shouldShorten = value.split(' ').length > 20 && !showFull;
     return Padding(
-      padding: const EdgeInsets.only(
-        bottom: 12.0,
-        top: 16.0,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 24, color: theme.colorScheme.secondary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
-              ),
-            ),
+          Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+          Text(
+            value,
+            maxLines: shouldShorten ? 3 : null,
+            overflow: shouldShorten ? TextOverflow.ellipsis : null,
           ),
+          if (shouldShorten)
+            GestureDetector(
+              onTap: () => setState(() => showFull = true),
+              child: Text('Devamı...', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+            ),
         ],
       ),
-    );
-  }
-
-  // --- Yardımcı Widget: Chip Listesi ---
-  Widget _buildChipList(
-    BuildContext context,
-    List<String> items,
-    Color chipColor,
-  ) {
-    final theme = Theme.of(context);
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
-      child: Wrap(
-        spacing: 8.0,
-        runSpacing: 6.0,
-        children: items
-            .map(
-              (item) => Chip(
-                label: Text(item),
-                backgroundColor: chipColor.withOpacity(0.15),
-                labelStyle: TextStyle(
-                  fontSize: 13,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                side: BorderSide(color: chipColor.withOpacity(0.4)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Analiz Raporu ve Yol Haritası'),
-        elevation: 1,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                colorScheme.primary,
-                colorScheme.primaryContainer.withOpacity(0.6),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-      ),
-      body: _isLoading
-          ? Center(child: _buildProgressIndicator())
-          : _error.isNotEmpty
-              ? _buildErrorWidget()
-              : _buildAnalysisResult(),
     );
   }
 }

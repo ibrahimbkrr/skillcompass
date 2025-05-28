@@ -67,7 +67,8 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     logger.warning(f"Rate limit aşıldı: {request.client.host}")
     return JSONResponse(
         status_code=429,
-        content={"detail": "Çok fazla istek yaptınız. Lütfen daha sonra tekrar deneyin."}
+        content={"detail": "Çok fazla istek yaptınız. Lütfen daha sonra tekrar deneyin."},
+        headers={"Content-Type": "application/json; charset=utf-8"}
     )
 
 # Sadece tek bir ana router ekle

@@ -1,59 +1,48 @@
 import os
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt, ExpiredSignatureError
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from dotenv import load_dotenv
+from fastapi import Depends, HTTPException, status, Request
 from pydantic import BaseModel
+import firebase_admin
+from firebase_admin import auth, credentials
+from dotenv import load_dotenv
+from typing import Optional
+import jwt
+from datetime import datetime, timedelta
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "supersecretkey")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "skillcompass_secret_key")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+# Firebase Admin başlat (idempotent)
+if not firebase_admin._apps:
+    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "skillcompass-project-firebase-adminsdk-fbsvc-97fdc7df20.json"
+    cred = credentials.Certificate(cred_path)
+    firebase_admin.initialize_app(cred)
 
-# Kullanıcı verisini modellemek için pydantic modeli
 class TokenData(BaseModel):
     user_id: Optional[str] = None
 
-# Token oluşturma fonksiyonu
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+async def verify_access_token(request: Request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token eksik veya hatalı.")
+    id_token = auth_header.split(" ")[1]
+    # Önce custom JWT olarak decode etmeyi dene
+    try:
+        decoded_token = jwt.decode(id_token, SECRET_KEY, algorithms=[ALGORITHM])
+        return TokenData(user_id=decoded_token.get("sub") or decoded_token.get("user_id"))
+    except Exception:
+        # Olmazsa Firebase ID Token olarak dene
+        try:
+            decoded_token = auth.verify_id_token(id_token)
+            return TokenData(user_id=decoded_token["uid"])
+        except Exception:
+            raise HTTPException(status_code=401, detail="Geçersiz veya süresi dolmuş token.")
+
+# JWT token üretici fonksiyon
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire, "type": "access_token"})
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=60))
+    to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
-# Token doğrulama fonksiyonu
-def verify_access_token(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Kimlik doğrulama başarısız.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        
-        # Token türünü doğrula
-        if payload.get("type") != "access_token":
-            raise credentials_exception
-        
-        user_id: str = payload.get("sub")
-        
-        if user_id is None:
-            raise credentials_exception
-        
-        token_data = TokenData(user_id=user_id)
-        return token_data
-
-    except ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token süresi doldu.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except JWTError:
-        raise credentials_exception

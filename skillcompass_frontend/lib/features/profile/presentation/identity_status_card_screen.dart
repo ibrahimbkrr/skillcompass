@@ -111,7 +111,7 @@ class _IdentityStatusCardScreenState extends State<IdentityStatusCardScreen> wit
 
   Future<void> _fetchExistingData() async {
     try {
-      final data = await _profileService.loadIdentityStatus();
+      final data = await _profileService.loadIdentityStatus(context);
       if (data != null) {
         setState(() {
           _storyController.text = data['story'] ?? '';

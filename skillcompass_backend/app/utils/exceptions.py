@@ -8,5 +8,6 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Beklenmeyen bir hata oluştu: {str(exc)}"}
+        content={"detail": f"Beklenmeyen bir hata oluştu: {str(exc)}"},
+        headers={"Content-Type": "application/json; charset=utf-8"}
     ) 

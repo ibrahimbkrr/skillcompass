@@ -1,16 +1,19 @@
+import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:skillcompass_frontend/core/constants/app_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart' as my_auth;
 
 /// Profil işlemleri için backend API ile iletişim kuran servis
 class ProfileService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Backend'den kimlik durumu verisini yükler
-  Future<Map<String, dynamic>?> loadIdentityStatus() async {
-    final token = await _getBackendJwt();
+  Future<Map<String, dynamic>?> loadIdentityStatus(BuildContext context) async {
+    final token = Provider.of<my_auth.AuthProvider>(context, listen: false).backendJwt;
     final user = _auth.currentUser;
     if (user == null || token == null) return null;
     final url = Uri.parse('${AppConstants.baseUrl}/profile/${user.uid}/identity-status');
@@ -165,8 +168,8 @@ class ProfileService {
   }
 
   /// Backend'den analiz sonucunu alır
-  Future<Map<String, dynamic>> analyzeUserProfile() async {
-    final token = await _getBackendJwt();
+  Future<Map<String, dynamic>> analyzeUserProfile(BuildContext context) async {
+    final token = Provider.of<my_auth.AuthProvider>(context, listen: false).backendJwt;
     final user = _auth.currentUser;
     if (user == null || token == null) throw Exception('Kullanıcı oturumu yok');
     final url = Uri.parse('${AppConstants.baseUrl}/analysis/${user.uid}/analyze');
@@ -174,7 +177,7 @@ class ProfileService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Analiz işlemi başarısız: \\${response.body}');
+      throw Exception('Analiz işlemi başarısız: ${response.body}');
     }
   }
 

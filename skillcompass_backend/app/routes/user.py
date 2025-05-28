@@ -11,7 +11,7 @@ from typing import Dict, Any
 import asyncio
 from skillcompass_backend.app.services.user_service import UserService
 from skillcompass_backend.app.schemas.user_schemas import UserData
-from skillcompass_backend.app.auth.jwt import verify_access_token, create_access_token, TokenData
+from skillcompass_backend.app.auth.jwt import verify_access_token, TokenData, create_access_token
 from datetime import timedelta
 from passlib.context import CryptContext
 from firebase_admin import auth

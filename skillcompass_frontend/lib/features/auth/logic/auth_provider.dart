@@ -57,17 +57,13 @@ class AuthProvider extends ChangeNotifier {
           'firebase_token': token,
         },
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final backendToken = data['access_token'];
-        if (backendToken != null) {
-          await _saveBackendJwt(backendToken);
-        } else {
-          throw Exception('Backend JWT alınamadı.');
-        }
+        _backendJwt = data['access_token'];
+        print('Firebase token sonrası backendJwt: $_backendJwt');
+        notifyListeners();
       } else {
-        throw Exception('Backend token alınamadı: ${response.body}');
+        throw Exception('Backend JWT alınamadı.');
       }
     } catch (e) {
       print('Backend token alma hatası: $e');
@@ -78,18 +74,31 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> signIn(String email, String password) async {
     try {
-      // Firebase ile giriş yap
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password
       );
-
-      // Firebase token'ı al
       final token = await userCredential.user?.getIdToken();
       if (token == null) throw Exception('Firebase token alınamadı');
-
-      // Backend'e token ile giriş yap
-      await _handleFirebaseToken(token);
+      final url = Uri.parse('${AppConstants.baseUrl}/users/auth/token');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': 'Bearer $token'
+        },
+        body: {
+          'firebase_token': token,
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _backendJwt = data['access_token'];
+        print('LOGIN sonrası backendJwt: $_backendJwt');
+        notifyListeners();
+      } else {
+        throw Exception('Backend token alınamadı: ${response.body}');
+      }
     } catch (e) {
       print('Giriş hatası: $e');
       await _clearBackendJwt();

@@ -18,9 +18,21 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await FirebaseAuth.instance.setLanguageCode('tr');
+
+  // Oturumu sıfırla
+  final authProvider = my_auth.AuthProvider();
+  await authProvider.signOut();
+
   runApp(
     ProviderScope(
-      child: const MyApp(),
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => authProvider),
+          ChangeNotifierProvider(create: (_) => UserProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ],
+        child: const MyApp(),
+      ),
     ),
   );
 }
@@ -30,40 +42,33 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => my_auth.AuthProvider()),
-      ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
-          return MaterialApp(
-            title: 'SkillCompass',
-            theme: AppTheme.lightTheme.copyWith(
-              textTheme: GoogleFonts.nunitoTextTheme(),
-            ),
-            darkTheme: AppTheme.darkTheme.copyWith(
-              textTheme: GoogleFonts.nunitoTextTheme(ThemeData.dark().textTheme),
-            ),
-            themeMode: themeProvider.themeMode,
-            home: StreamBuilder<User?>(
-              stream: FirebaseAuth.instance.authStateChanges(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
-                }
-                if (snapshot.hasData) {
-                  return const DashboardScreen();
-                } else {
-                  return const LoginScreen();
-                }
-              },
-            ),
-            debugShowCheckedModeBanner: false,
-          );
-        },
-      ),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'SkillCompass',
+          theme: AppTheme.lightTheme.copyWith(
+            textTheme: GoogleFonts.nunitoTextTheme(),
+          ),
+          darkTheme: AppTheme.darkTheme.copyWith(
+            textTheme: GoogleFonts.nunitoTextTheme(ThemeData.dark().textTheme),
+          ),
+          themeMode: themeProvider.themeMode,
+          home: StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              }
+              if (snapshot.hasData) {
+                return const DashboardScreen();
+              } else {
+                return const LoginScreen();
+              }
+            },
+          ),
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }

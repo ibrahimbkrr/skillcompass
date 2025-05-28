@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:skillcompass_frontend/core/constants/app_constants.dart';
 import 'package:skillcompass_frontend/features/auth/logic/auth_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter/material.dart';
 
 // Güvenlik için önerilen yöntem: Flutter'dan doğrudan OpenAI'ya istek atmak yerine
 // kendi backend'inizde (ör. Firebase Functions, FastAPI, Node.js) bir endpoint oluşturun.
@@ -75,14 +77,14 @@ class AnalysisService {
 
   AnalysisService(this.authProvider);
 
-  Future<AnalysisResponse> startAnalysis() async {
+  Future<AnalysisResponse> startAnalysis(BuildContext context) async {
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.backendJwt;
+      print('ANALYSIS API JWT: $token');
       if (token == null) throw Exception('Oturum bulunamadı');
-
       final userId = authProvider.user?.uid;
       if (userId == null) throw Exception('Kullanıcı ID bulunamadı');
-
       final response = await http.post(
         Uri.parse('${AppConstants.baseUrl}/analysis/$userId/analyze'),
         headers: {
@@ -90,7 +92,6 @@ class AnalysisService {
           'Authorization': 'Bearer $token',
         },
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return AnalysisResponse.fromJson(data);
